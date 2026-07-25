@@ -331,6 +331,10 @@ input:focus{outline:none;border-color:var(--green);}
     <div class="summary-row"><span>عدد المنتجات</span><span class="val" id="sumCount">0</span></div>
     <div class="summary-row"><span>المجموع قبل الضريبة</span><span class="val" id="sumSubtotal">0.000</span></div>
     <div class="summary-row"><span>الضريبة</span><span class="val" id="sumTax">0.000</span></div>
+    <div class="tax-line">
+      <span>الخصم / التخفيض</span>
+      <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
+    </div>
     <div class="summary-row total"><span>الإجمالي</span><span class="val" id="sumTotal">0.000</span></div>
     <button class="finish-btn" onclick="finishTrip()">✔ إنهاء التسوق وحفظه</button>
   </div>
@@ -373,7 +377,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 /* ===================================================== */
 
-let state = { store:'', date:'', taxPercent:'', items:[] };
+let state = { store:'', date:'', taxPercent:'', discount:'', items:[] };
 let refPriceInfo = null;
 let scanStream = null;
 let detectorTimer = null;
@@ -435,6 +439,7 @@ async function loadDraft(){
   document.getElementById('storeName').value = state.store || '';
   document.getElementById('tripDate').value = state.date;
   document.getElementById('taxPercent').value = state.taxPercent || '';
+  document.getElementById('discountAmount').value = state.discount || '';
   renderCart(); renderSummary();
 }
 
@@ -451,6 +456,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('storeName').addEventListener('input', e=>{ state.store=e.target.value; saveDraft(); });
   document.getElementById('tripDate').addEventListener('input', e=>{ state.date=e.target.value; saveDraft(); });
   document.getElementById('taxPercent').addEventListener('input', e=>{ state.taxPercent=e.target.value; saveDraft(); });
+  document.getElementById('discountAmount').addEventListener('input', e=>{ state.discount=e.target.value; saveDraft(); });
   document.getElementById('pBarcode').addEventListener('input', checkBarcodePrice);
   document.getElementById('pName').addEventListener('input', renderSuggestions);
   document.getElementById('pName').addEventListener('focus', renderSuggestions);
@@ -666,12 +672,23 @@ function renderSummary(){
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
   const tax = subtotal*(taxPct/100);
-  const total = subtotal+tax;
+  const discount = parseFloat(document.getElementById('discountAmount').value)||0;
+  const total = Math.max(0, subtotal+tax-discount);
   document.getElementById('sumCount').textContent = count;
   document.getElementById('sumSubtotal').textContent = fmt(subtotal);
   document.getElementById('sumTax').textContent = fmt(tax);
   document.getElementById('sumTotal').textContent = fmt(total);
+  adjustBodyPadding();
 }
+
+function adjustBodyPadding(){
+  const bar = document.getElementById('summaryBar');
+  if(bar && bar.offsetHeight){
+    document.body.style.paddingBottom = (bar.offsetHeight + 24) + 'px';
+  }
+}
+window.addEventListener('resize', adjustBodyPadding);
+window.addEventListener('load', adjustBodyPadding);
 
 async function finishTrip(){
   if(!state.items.length){ showToast('السلة فاضية'); return; }
@@ -679,10 +696,11 @@ async function finishTrip(){
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
   const tax = subtotal*(taxPct/100);
-  const total = subtotal+tax;
+  const discount = parseFloat(document.getElementById('discountAmount').value)||0;
+  const total = Math.max(0, subtotal+tax-discount);
   const trip = {
     id: editingTripId || uid(), date: state.date||todayISO(), store: state.store||'محل غير مسمى',
-    items: state.items, taxPercent: taxPct, itemCount: count, subtotal, tax, total
+    items: state.items, taxPercent: taxPct, discount, itemCount: count, subtotal, tax, total
   };
   try{
     await basketRef().collection('trips').doc(trip.id).set(trip);
@@ -690,10 +708,11 @@ async function finishTrip(){
 
   const wasEditing = !!editingTripId;
   editingTripId = null;
-  state = { store:'', date: todayISO(), taxPercent:'', items:[] };
+  state = { store:'', date: todayISO(), taxPercent:'', discount:'', items:[] };
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){}
   document.getElementById('storeName').value='';
   document.getElementById('taxPercent').value='';
+  document.getElementById('discountAmount').value='';
   document.getElementById('tripDate').value = state.date;
   document.querySelector('.finish-btn').textContent = '✔ إنهاء التسوق وحفظه';
   renderCart(); renderSummary(); loadHistory();
@@ -708,6 +727,7 @@ function switchTab(tab){
   document.getElementById('summaryBar').style.display = isCart?'block':'none';
   document.getElementById('tabCart').classList.toggle('active', isCart);
   document.getElementById('tabHistory').classList.toggle('active', !isCart);
+  if(isCart){ setTimeout(adjustBodyPadding, 0); } else { document.body.style.paddingBottom = '24px'; }
 }
 
 async function loadHistory(){
@@ -755,7 +775,7 @@ async function toggleTrip(id, cardEl){
           <span class="dots"></span>
           <span class="price">${fmt(i.price*i.qty)}</span>
         </div>
-      `).join('') + `<div class="receipt-line" style="border-bottom:none;font-weight:800;"><span></span><span class="name">ضريبة ${trip.taxPercent||0}%</span><span class="dots"></span><span class="price">${fmt(trip.tax)}</span></div>`;
+      `).join('') + `<div class="receipt-line" style="border-bottom:none;font-weight:800;"><span></span><span class="name">ضريبة ${trip.taxPercent||0}%</span><span class="dots"></span><span class="price">${fmt(trip.tax)}</span></div>` + (trip.discount ? `<div class="receipt-line" style="border-bottom:none;font-weight:800;color:var(--red);"><span></span><span class="name">خصم</span><span class="dots"></span><span class="price">-${fmt(trip.discount)}</span></div>` : '');
       box.dataset.loaded = '1';
     }
   }
@@ -767,10 +787,11 @@ async function editTrip(id){
   if(!trip) return;
   if(state.items.length && !confirm('عندك سلة حالية فيها منتجات، بتنستبدل بمحتوى الفاتورة المطلوب تعديلها. تكمل؟')) return;
   editingTripId = id;
-  state = { store: trip.store, date: trip.date, taxPercent: trip.taxPercent || '', items: trip.items.map(i=>({...i})) };
+  state = { store: trip.store, date: trip.date, taxPercent: trip.taxPercent || '', discount: trip.discount || '', items: trip.items.map(i=>({...i})) };
   document.getElementById('storeName').value = state.store;
   document.getElementById('tripDate').value = state.date;
   document.getElementById('taxPercent').value = state.taxPercent;
+  document.getElementById('discountAmount').value = state.discount;
   renderCart(); renderSummary(); saveDraft();
   document.querySelector('.finish-btn').textContent = '💾 حفظ التعديلات على الفاتورة';
   switchTab('cart');
@@ -817,6 +838,7 @@ async function shareTripPDF(id){
     <div style="border-top:2px dashed #E1DBF0;margin:12px 0 8px;"></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax)}</span></div>
+    ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount)}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total)}</span></div>
   `;
   document.body.appendChild(wrap);
