@@ -180,6 +180,31 @@ input:focus{outline:none;border-color:var(--green);}
 .sync-badge b{color:var(--green-dark);font-family:'JetBrains Mono';}
 .sync-modal .field{margin-bottom:14px;text-align:right;}
 .sync-modal p{text-align:right;}
+
+/* Autocomplete suggestions */
+.autocomplete-wrap{position:relative;}
+.suggest-list{
+  position:absolute;top:100%;right:0;left:0;background:#fff;border:1.5px solid var(--line);
+  border-radius:10px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:20;
+  box-shadow:0 8px 20px rgba(36,48,42,.12);display:none;
+}
+.suggest-list.open{display:block;}
+.suggest-item{
+  padding:9px 12px;font-size:13.5px;cursor:pointer;display:flex;justify-content:space-between;
+  border-bottom:1px solid var(--paper-2);
+}
+.suggest-item:last-child{border-bottom:none;}
+.suggest-item:hover, .suggest-item.active{background:var(--paper-2);}
+.suggest-item .sname{font-weight:600;}
+.suggest-item .sprice{font-family:'JetBrains Mono';color:var(--muted);font-size:12.5px;}
+
+.edit-btn{background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:0 2px;flex-shrink:0;}
+.editing-banner{
+  background:#FFF6E0;color:#8A6100;font-size:12px;font-weight:600;padding:7px 10px;
+  border-radius:8px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;
+}
+.editing-banner.show{display:flex;}
+.editing-banner button{background:none;border:none;color:#8A6100;font-weight:700;cursor:pointer;text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -221,10 +246,15 @@ input:focus{outline:none;border-color:var(--green);}
 
     <div class="card">
       <h2>إضافة منتج</h2>
+      <div class="editing-banner" id="editingBanner">
+        <span>✏️ تعديل منتج بالسلة</span>
+        <button onclick="cancelEdit()">إلغاء التعديل</button>
+      </div>
       <div class="row">
-        <div class="field">
+        <div class="field autocomplete-wrap">
           <label>اسم المنتج</label>
-          <input type="text" id="pName" placeholder="مثال: حليب">
+          <input type="text" id="pName" placeholder="مثال: حليب" autocomplete="off">
+          <div class="suggest-list" id="suggestList"></div>
         </div>
         <div class="field" style="max-width:90px;">
           <label>الكمية</label>
@@ -243,7 +273,7 @@ input:focus{outline:none;border-color:var(--green);}
         </div>
         <div class="price-alert" id="priceAlert"></div>
       </div>
-      <button class="add-btn" onclick="addItem()">+ أضف للسلة</button>
+      <button class="add-btn" id="addBtn" onclick="addItem()">+ أضف للسلة</button>
     </div>
 
     <div class="receipt">
@@ -311,10 +341,12 @@ const db = firebase.firestore();
 /* ===================================================== */
 
 let state = { store:'', date:'', taxPercent:'', items:[] };
-let editingBarcodeInfo = null;
+let refPriceInfo = null;
 let scanStream = null;
 let detectorTimer = null;
 let syncCode = localStorage.getItem('syncCode') || '';
+let productsCache = [];
+let editingItemId = null;
 let tripsCache = {};
 
 function basketRef(){ return db.collection('baskets').doc(syncCode); }
@@ -330,7 +362,7 @@ function saveSyncCode(){
   localStorage.setItem('syncCode', syncCode);
   document.getElementById('syncCodeLabel').textContent = syncCode;
   document.getElementById('syncModal').classList.remove('open');
-  loadDraft(); loadHistory();
+  loadDraft(); loadHistory(); loadProductsCache();
 }
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -365,6 +397,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     document.getElementById('syncCodeLabel').textContent = syncCode;
     loadDraft();
     loadHistory();
+    loadProductsCache();
   } else {
     openSyncModal();
   }
@@ -372,29 +405,73 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('tripDate').addEventListener('input', e=>{ state.date=e.target.value; saveDraft(); });
   document.getElementById('taxPercent').addEventListener('input', e=>{ state.taxPercent=e.target.value; saveDraft(); });
   document.getElementById('pBarcode').addEventListener('input', checkBarcodePrice);
+  document.getElementById('pName').addEventListener('input', renderSuggestions);
+  document.getElementById('pName').addEventListener('focus', renderSuggestions);
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('.autocomplete-wrap')) hideSuggestions();
+  });
 });
+
+async function loadProductsCache(){
+  if(!syncCode) return;
+  try{
+    const snap = await basketRef().collection('products').get();
+    productsCache = snap.docs.map(d=>d.data());
+  }catch(e){ console.error(e); }
+}
+
+function slugify(name){
+  return name.trim().toLowerCase().replace(/\//g,'_').replace(/\s+/g,'-').slice(0,120) || uid();
+}
+
+function hideSuggestions(){
+  document.getElementById('suggestList').classList.remove('open');
+}
+
+function renderSuggestions(){
+  const q = document.getElementById('pName').value.trim().toLowerCase();
+  const box = document.getElementById('suggestList');
+  if(!q){ hideSuggestions(); return; }
+  const starts = productsCache.filter(p=>p.name.toLowerCase().startsWith(q));
+  const contains = productsCache.filter(p=>!p.name.toLowerCase().startsWith(q) && p.name.toLowerCase().includes(q));
+  const results = [...starts, ...contains].slice(0,8);
+  if(!results.length){ hideSuggestions(); return; }
+  box.innerHTML = results.map((p,idx)=>`
+    <div class="suggest-item" onclick="selectSuggestion(${idx})">
+      <span class="sname">${escapeHtml(p.name)}</span>
+      <span class="sprice">${fmt(p.price)}</span>
+    </div>
+  `).join('');
+  box.dataset.results = JSON.stringify(results);
+  box.classList.add('open');
+}
+
+function selectSuggestion(idx){
+  const results = JSON.parse(document.getElementById('suggestList').dataset.results || '[]');
+  const p = results[idx];
+  if(!p) return;
+  document.getElementById('pName').value = p.name;
+  document.getElementById('pPrice').value = p.price;
+  if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
+  refPriceInfo = p;
+  compareAndShow(p.price, p);
+  hideSuggestions();
+}
 
 async function checkBarcodePrice(){
   const code = document.getElementById('pBarcode').value.trim();
   const alertBox = document.getElementById('priceAlert');
-  editingBarcodeInfo = null;
+  refPriceInfo = null;
   if(!code){ alertBox.style.display='none'; return; }
   if(!syncCode) return;
   try{
-    const doc = await basketRef().collection('barcodes').doc(code).get();
+    const doc = await basketRef().collection('products').doc(code).get();
     if(doc.exists){
       const info = doc.data();
-      editingBarcodeInfo = info;
+      refPriceInfo = info;
       document.getElementById('pName').value = document.getElementById('pName').value || info.name;
-      const priceInput = document.getElementById('pPrice');
-      const newPrice = parseFloat(priceInput.value);
-      if(!isNaN(newPrice) && newPrice>0){
-        compareAndShow(newPrice, info);
-      } else {
-        alertBox.className = 'price-alert same';
-        alertBox.style.display='flex';
-        alertBox.textContent = `آخر سعر مسجل لهذا المنتج: ${fmt(info.price)} (بتاريخ ${info.date} في ${info.store||'—'})`;
-      }
+      document.getElementById('pPrice').value = info.price;
+      compareAndShow(info.price, info);
     } else {
       alertBox.style.display='none';
     }
@@ -402,9 +479,9 @@ async function checkBarcodePrice(){
 }
 
 document.addEventListener('input', (e)=>{
-  if(e.target && e.target.id==='pPrice' && editingBarcodeInfo){
+  if(e.target && e.target.id==='pPrice' && refPriceInfo){
     const newPrice = parseFloat(e.target.value);
-    if(!isNaN(newPrice) && newPrice>0) compareAndShow(newPrice, editingBarcodeInfo);
+    if(!isNaN(newPrice) && newPrice>0) compareAndShow(newPrice, refPriceInfo);
   }
 });
 
@@ -433,25 +510,54 @@ async function addItem(){
   if(!name){ showToast('اكتب اسم المنتج'); return; }
   if(isNaN(price) || price<0){ showToast('اكتب سعر صحيح'); return; }
 
-  const item = { id: uid(), name, price, qty, barcode };
-  state.items.push(item);
-
-  if(barcode){
-    try{ await basketRef().collection('barcodes').doc(barcode).set({name, price, date: state.date||todayISO(), store: state.store||''}); }catch(e){}
+  if(editingItemId){
+    const idx = state.items.findIndex(i=>i.id===editingItemId);
+    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, barcode };
+  } else {
+    state.items.push({ id: uid(), name, price, qty, barcode });
   }
 
+  const productId = barcode || slugify(name);
+  const productInfo = {name, price, barcode: barcode||'', date: state.date||todayISO(), store: state.store||''};
+  try{
+    await basketRef().collection('products').doc(productId).set(productInfo);
+    const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
+    if(ci>-1) productsCache[ci]=productInfo; else productsCache.push(productInfo);
+  }catch(e){}
+
+  cancelEdit();
+  saveDraft(); renderCart(); renderSummary();
+}
+
+function editItem(id){
+  const item = state.items.find(i=>i.id===id);
+  if(!item) return;
+  editingItemId = id;
+  document.getElementById('pName').value = item.name;
+  document.getElementById('pPrice').value = item.price;
+  document.getElementById('pQty').value = item.qty;
+  document.getElementById('pBarcode').value = item.barcode || '';
+  document.getElementById('editingBanner').classList.add('show');
+  document.getElementById('addBtn').textContent = '💾 حفظ التعديل';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function cancelEdit(){
+  editingItemId = null;
+  refPriceInfo = null;
   document.getElementById('pName').value='';
   document.getElementById('pPrice').value='';
   document.getElementById('pQty').value='1';
   document.getElementById('pBarcode').value='';
   document.getElementById('priceAlert').style.display='none';
-  editingBarcodeInfo=null;
-
-  saveDraft(); renderCart(); renderSummary();
+  document.getElementById('editingBanner').classList.remove('show');
+  document.getElementById('addBtn').textContent = '+ أضف للسلة';
+  hideSuggestions();
 }
 
 function removeItem(id){
   state.items = state.items.filter(i=>i.id!==id);
+  if(editingItemId===id) cancelEdit();
   saveDraft(); renderCart(); renderSummary();
 }
 
@@ -467,6 +573,7 @@ function renderCart(){
       <span class="name">${escapeHtml(i.name)}</span>
       <span class="dots"></span>
       <span class="price">${fmt(i.price*i.qty)}</span>
+      <button class="edit-btn" onclick="editItem('${i.id}')">✏️</button>
       <button class="del" onclick="removeItem('${i.id}')">✕</button>
     </div>
   `).join('');
