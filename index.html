@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>سلة السوق</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&family=Cairo:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root{
+  --paper:#FAF7F0;
+  --paper-2:#F2EDE1;
+  --ink:#24302A;
+  --muted:#8A8272;
+  --green:#2F6B4A;
+  --green-dark:#1E4E36;
+  --amber:#D6A419;
+  --red:#C1443C;
+  --line:#DCD3C0;
+  --radius:14px;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Cairo',sans-serif;
+  min-height:100vh;
+  padding-bottom:140px;
+}
+.app{max-width:520px;margin:0 auto;padding:18px 16px 0;}
+
+/* Header */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+header .brand{display:flex;align-items:center;gap:10px;}
+header .brand .mark{
+  width:38px;height:38px;border-radius:10px;background:var(--green);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  font-family:'Tajawal';font-weight:900;font-size:18px;
+}
+header h1{font-family:'Tajawal';font-weight:900;font-size:20px;margin:0;color:var(--green-dark);}
+.tab-btn{
+  border:1.5px solid var(--line);background:#fff;color:var(--muted);
+  font-family:'Cairo';font-weight:600;font-size:13px;
+  padding:7px 14px;border-radius:999px;cursor:pointer;
+}
+.tab-btn.active{background:var(--green);border-color:var(--green);color:#fff;}
+
+/* Card */
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px;
+}
+.card h2{
+  font-family:'Tajawal';font-weight:700;font-size:15px;margin:0 0 12px;
+  color:var(--green-dark);
+}
+label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;}
+input[type=text], input[type=number], input[type=date]{
+  width:100%;padding:10px 12px;border:1.5px solid var(--line);
+  border-radius:10px;font-family:'Cairo';font-size:14.5px;background:var(--paper);
+  color:var(--ink);
+}
+input:focus{outline:none;border-color:var(--green);}
+.row{display:flex;gap:10px;}
+.row > *{flex:1;}
+.field{margin-bottom:12px;}
+
+.barcode-row{display:flex;gap:8px;align-items:flex-end;}
+.barcode-row .field{flex:1;margin-bottom:0;}
+.icon-btn{
+  width:42px;height:42px;flex-shrink:0;border-radius:10px;border:1.5px solid var(--line);
+  background:var(--paper-2);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;
+}
+.icon-btn:active{transform:scale(.94);}
+
+.price-alert{
+  margin-top:8px;padding:8px 10px;border-radius:8px;font-size:12.5px;font-weight:600;
+  display:none;align-items:center;gap:6px;
+}
+.price-alert.up{background:#FBEAE8;color:var(--red);display:flex;}
+.price-alert.down{background:#E9F5EE;color:var(--green-dark);display:flex;}
+.price-alert.same{background:var(--paper-2);color:var(--muted);display:flex;}
+
+.add-btn{
+  width:100%;padding:12px;border:none;border-radius:10px;background:var(--green);
+  color:#fff;font-family:'Tajawal';font-weight:700;font-size:15px;cursor:pointer;margin-top:4px;
+}
+.add-btn:active{background:var(--green-dark);}
+
+/* Receipt list */
+.receipt{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 16px 8px;position:relative;margin-bottom:14px;
+}
+.receipt::before{
+  content:"";position:absolute;top:-1px;right:14px;left:14px;height:0;
+  border-top:2px dashed var(--line);
+}
+.receipt-head{
+  text-align:center;margin-bottom:10px;font-family:'Tajawal';font-weight:700;
+  color:var(--green-dark);font-size:14px;
+}
+.receipt-empty{text-align:center;color:var(--muted);font-size:13.5px;padding:20px 0;}
+.receipt-line{display:flex;align-items:baseline;gap:6px;padding:7px 0;border-bottom:1px dotted var(--line);}
+.receipt-line:last-child{border-bottom:none;}
+.receipt-line .qty{
+  font-family:'JetBrains Mono';font-size:12px;color:var(--muted);
+  background:var(--paper-2);border-radius:6px;padding:1px 6px;flex-shrink:0;
+}
+.receipt-line .name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.receipt-line .dots{flex:1;border-bottom:1px dotted var(--muted);height:0;margin-bottom:4px;min-width:6px;}
+.receipt-line .price{font-family:'JetBrains Mono';font-weight:700;font-size:13.5px;flex-shrink:0;}
+.receipt-line .del{
+  background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 2px;flex-shrink:0;
+}
+
+/* Sticky summary */
+.summary-bar{
+  position:fixed;bottom:0;left:0;right:0;background:var(--green-dark);color:#fff;
+  padding:12px 16px 16px;border-radius:18px 18px 0 0;
+}
+.summary-inner{max-width:520px;margin:0 auto;}
+.summary-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#D9E7DE;}
+.summary-row.total{font-family:'Tajawal';font-weight:900;font-size:18px;color:#fff;border-top:1px dashed #4A7B62;margin-top:6px;padding-top:8px;}
+.summary-row .val{font-family:'JetBrains Mono';font-weight:700;}
+.tax-line{display:flex;align-items:center;gap:8px;margin:8px 0 4px;}
+.tax-line input{
+  width:70px;padding:6px 8px;border-radius:8px;border:none;font-family:'JetBrains Mono';
+  text-align:center;font-weight:700;
+}
+.tax-line span{font-size:12.5px;color:#D9E7DE;}
+.finish-btn{
+  width:100%;margin-top:8px;padding:12px;border:none;border-radius:10px;
+  background:var(--amber);color:var(--ink);font-family:'Tajawal';font-weight:800;font-size:15px;cursor:pointer;
+}
+
+/* History */
+.trip-card{
+  background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;
+}
+.trip-head{display:flex;justify-content:space-between;align-items:center;}
+.trip-store{font-family:'Tajawal';font-weight:700;font-size:14px;color:var(--green-dark);}
+.trip-date{font-size:11.5px;color:var(--muted);}
+.trip-total{font-family:'JetBrains Mono';font-weight:700;font-size:14px;}
+.trip-items{margin-top:8px;display:none;}
+.trip-items.open{display:block;}
+.trip-items .receipt-line{border-bottom:1px dotted var(--line);}
+
+.empty-state{text-align:center;color:var(--muted);font-size:13.5px;padding:30px 10px;}
+.empty-state .big{font-size:34px;margin-bottom:8px;}
+
+/* Camera modal */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(20,26,22,.75);display:none;
+  align-items:center;justify-content:center;z-index:50;padding:20px;
+}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:16px;padding:16px;max-width:400px;width:100%;text-align:center;}
+.modal video{width:100%;border-radius:10px;background:#000;max-height:280px;}
+.modal p{font-size:13px;color:var(--muted);margin:10px 0;}
+.modal button{
+  margin-top:8px;padding:9px 18px;border-radius:9px;border:none;background:var(--ink);color:#fff;
+  font-family:'Cairo';font-weight:600;cursor:pointer;
+}
+
+.toast{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  background:var(--green-dark);color:#fff;padding:10px 18px;border-radius:999px;
+  font-size:13px;font-weight:600;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none;
+}
+.toast.show{opacity:1;}
+.sync-badge{
+  display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);
+  background:var(--paper-2);border-radius:999px;padding:5px 10px;cursor:pointer;border:1px solid var(--line);
+}
+.sync-badge b{color:var(--green-dark);font-family:'JetBrains Mono';}
+.sync-modal .field{margin-bottom:14px;text-align:right;}
+.sync-modal p{text-align:right;}
+</style>
+</head>
+<body>
+
+<!-- Firebase SDK (compat build, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="mark">🛒</div>
+      <h1>سلة السوق</h1>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')">السلة</button>
+      <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">السجل</button>
+    </div>
+  </header>
+
+  <div class="sync-badge" onclick="openSyncModal()" style="margin-bottom:14px;">
+    🔗 كود المزامنة: <b id="syncCodeLabel">—</b> — اضغط للتغيير أو المشاركة
+  </div>
+
+  <!-- CART TAB -->
+  <div id="cartTab">
+    <div class="card">
+      <h2>معلومات الرحلة</h2>
+      <div class="row">
+        <div class="field">
+          <label>اسم المحل</label>
+          <input type="text" id="storeName" placeholder="مثال: سوبر ماركت الرحمة">
+        </div>
+        <div class="field">
+          <label>التاريخ</label>
+          <input type="date" id="tripDate">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>إضافة منتج</h2>
+      <div class="row">
+        <div class="field">
+          <label>اسم المنتج</label>
+          <input type="text" id="pName" placeholder="مثال: حليب">
+        </div>
+        <div class="field" style="max-width:90px;">
+          <label>الكمية</label>
+          <input type="number" id="pQty" value="1" min="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>السعر (للقطعة)</label>
+        <input type="number" id="pPrice" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div class="field">
+        <label>الباركود (اختياري)</label>
+        <div class="barcode-row">
+          <div class="field"><input type="text" id="pBarcode" placeholder="امسحه بالكاميرا أو اكتبه يدويًا"></div>
+          <button class="icon-btn" onclick="openScanner()" title="مسح بالكاميرا">📷</button>
+        </div>
+        <div class="price-alert" id="priceAlert"></div>
+      </div>
+      <button class="add-btn" onclick="addItem()">+ أضف للسلة</button>
+    </div>
+
+    <div class="receipt">
+      <div class="receipt-head">🧾 مشترياتك</div>
+      <div id="cartList"><div class="receipt-empty">السلة فاضية — ابدأ بإضافة منتج</div></div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="historyTab" style="display:none;">
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- Sticky summary (cart tab only) -->
+<div class="summary-bar" id="summaryBar">
+  <div class="summary-inner">
+    <div class="tax-line">
+      <span>نسبة الضريبة %</span>
+      <input type="number" id="taxPercent" placeholder="0" min="0" step="0.1" oninput="renderSummary()">
+    </div>
+    <div class="summary-row"><span>عدد المنتجات</span><span class="val" id="sumCount">0</span></div>
+    <div class="summary-row"><span>المجموع قبل الضريبة</span><span class="val" id="sumSubtotal">0.00</span></div>
+    <div class="summary-row"><span>الضريبة</span><span class="val" id="sumTax">0.00</span></div>
+    <div class="summary-row total"><span>الإجمالي</span><span class="val" id="sumTotal">0.00</span></div>
+    <button class="finish-btn" onclick="finishTrip()">✔ إنهاء الرحلة وحفظها</button>
+  </div>
+</div>
+
+<!-- Camera modal -->
+<div class="modal-bg" id="scanModal">
+  <div class="modal">
+    <video id="scanVideo" autoplay playsinline muted></video>
+    <p id="scanStatus">وجّه الكاميرا نحو الباركود...</p>
+    <button onclick="closeScanner()">إغلاق</button>
+  </div>
+</div>
+
+<!-- Sync code modal -->
+<div class="modal-bg" id="syncModal">
+  <div class="modal sync-modal">
+    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">كود المزامنة</h2>
+    <p>هذا الكود يربط بياناتك بين كل أجهزتك. اكتب أي كود تختاره أول مرة (مثلاً اسم عائلتك + رقم)، وسجّله بنفس الكود بأي جهاز ثاني تبي بياناته تتزامن معه.</p>
+    <div class="field">
+      <input type="text" id="syncCodeInput" placeholder="مثال: alrashid-2026">
+    </div>
+    <button onclick="saveSyncCode()">حفظ والمتابعة</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ====== 1) عدّل بياناتك من Firebase Console هنا ====== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDPu5CxTqUNDPLWYHlz7MfcilWc_yq-SBk",
+  authDomain: "my-product-581c3.firebaseapp.com",
+  projectId: "my-product-581c3",
+  storageBucket: "my-product-581c3.firebasestorage.app",
+  messagingSenderId: "612337152803",
+  appId: "1:612337152803:web:7a33f950caf7de9a105296"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+/* ===================================================== */
+
+let state = { store:'', date:'', taxPercent:'', items:[] };
+let editingBarcodeInfo = null;
+let scanStream = null;
+let detectorTimer = null;
+let syncCode = localStorage.getItem('syncCode') || '';
+let tripsCache = {};
+
+function basketRef(){ return db.collection('baskets').doc(syncCode); }
+
+function openSyncModal(){
+  document.getElementById('syncCodeInput').value = syncCode;
+  document.getElementById('syncModal').classList.add('open');
+}
+function saveSyncCode(){
+  const v = document.getElementById('syncCodeInput').value.trim();
+  if(!v){ showToast('اكتب كود'); return; }
+  syncCode = v;
+  localStorage.setItem('syncCode', syncCode);
+  document.getElementById('syncCodeLabel').textContent = syncCode;
+  document.getElementById('syncModal').classList.remove('open');
+  loadDraft(); loadHistory();
+}
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+async function saveDraft(){
+  if(!syncCode) return;
+  try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
+}
+
+async function loadDraft(){
+  if(!syncCode) return;
+  try{
+    const doc = await basketRef().get();
+    if(doc.exists && doc.data().draft){ state = doc.data().draft; }
+  }catch(e){ console.error(e); }
+  if(!state.date) state.date = todayISO();
+  document.getElementById('storeName').value = state.store || '';
+  document.getElementById('tripDate').value = state.date;
+  document.getElementById('taxPercent').value = state.taxPercent || '';
+  renderCart(); renderSummary();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('tripDate').value = todayISO();
+  if(syncCode){
+    document.getElementById('syncCodeLabel').textContent = syncCode;
+    loadDraft();
+    loadHistory();
+  } else {
+    openSyncModal();
+  }
+  document.getElementById('storeName').addEventListener('input', e=>{ state.store=e.target.value; saveDraft(); });
+  document.getElementById('tripDate').addEventListener('input', e=>{ state.date=e.target.value; saveDraft(); });
+  document.getElementById('taxPercent').addEventListener('input', e=>{ state.taxPercent=e.target.value; saveDraft(); });
+  document.getElementById('pBarcode').addEventListener('input', checkBarcodePrice);
+});
+
+async function checkBarcodePrice(){
+  const code = document.getElementById('pBarcode').value.trim();
+  const alertBox = document.getElementById('priceAlert');
+  editingBarcodeInfo = null;
+  if(!code){ alertBox.style.display='none'; return; }
+  if(!syncCode) return;
+  try{
+    const doc = await basketRef().collection('barcodes').doc(code).get();
+    if(doc.exists){
+      const info = doc.data();
+      editingBarcodeInfo = info;
+      document.getElementById('pName').value = document.getElementById('pName').value || info.name;
+      const priceInput = document.getElementById('pPrice');
+      const newPrice = parseFloat(priceInput.value);
+      if(!isNaN(newPrice) && newPrice>0){
+        compareAndShow(newPrice, info);
+      } else {
+        alertBox.className = 'price-alert same';
+        alertBox.style.display='flex';
+        alertBox.textContent = `آخر سعر مسجل لهذا المنتج: ${fmt(info.price)} (بتاريخ ${info.date} في ${info.store||'—'})`;
+      }
+    } else {
+      alertBox.style.display='none';
+    }
+  }catch(e){ alertBox.style.display='none'; }
+}
+
+document.addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='pPrice' && editingBarcodeInfo){
+    const newPrice = parseFloat(e.target.value);
+    if(!isNaN(newPrice) && newPrice>0) compareAndShow(newPrice, editingBarcodeInfo);
+  }
+});
+
+function compareAndShow(newPrice, info){
+  const alertBox = document.getElementById('priceAlert');
+  const diff = newPrice - info.price;
+  alertBox.style.display='flex';
+  if(Math.abs(diff) < 0.001){
+    alertBox.className='price-alert same';
+    alertBox.textContent = `نفس السعر السابق (${fmt(info.price)})`;
+  } else if(diff > 0){
+    alertBox.className='price-alert up';
+    alertBox.textContent = `⬆ السعر ارتفع من ${fmt(info.price)} إلى ${fmt(newPrice)} (+${fmt(diff)})`;
+  } else {
+    alertBox.className='price-alert down';
+    alertBox.textContent = `⬇ السعر انخفض من ${fmt(info.price)} إلى ${fmt(newPrice)} (${fmt(diff)})`;
+  }
+}
+
+async function addItem(){
+  const name = document.getElementById('pName').value.trim();
+  const price = parseFloat(document.getElementById('pPrice').value);
+  const qty = Math.max(1, parseInt(document.getElementById('pQty').value)||1);
+  const barcode = document.getElementById('pBarcode').value.trim();
+
+  if(!name){ showToast('اكتب اسم المنتج'); return; }
+  if(isNaN(price) || price<0){ showToast('اكتب سعر صحيح'); return; }
+
+  const item = { id: uid(), name, price, qty, barcode };
+  state.items.push(item);
+
+  if(barcode){
+    try{ await basketRef().collection('barcodes').doc(barcode).set({name, price, date: state.date||todayISO(), store: state.store||''}); }catch(e){}
+  }
+
+  document.getElementById('pName').value='';
+  document.getElementById('pPrice').value='';
+  document.getElementById('pQty').value='1';
+  document.getElementById('pBarcode').value='';
+  document.getElementById('priceAlert').style.display='none';
+  editingBarcodeInfo=null;
+
+  saveDraft(); renderCart(); renderSummary();
+}
+
+function removeItem(id){
+  state.items = state.items.filter(i=>i.id!==id);
+  saveDraft(); renderCart(); renderSummary();
+}
+
+function renderCart(){
+  const list = document.getElementById('cartList');
+  if(!state.items.length){
+    list.innerHTML = '<div class="receipt-empty">السلة فاضية — ابدأ بإضافة منتج</div>';
+    return;
+  }
+  list.innerHTML = state.items.map(i=>`
+    <div class="receipt-line">
+      <span class="qty">×${i.qty}</span>
+      <span class="name">${escapeHtml(i.name)}</span>
+      <span class="dots"></span>
+      <span class="price">${fmt(i.price*i.qty)}</span>
+      <button class="del" onclick="removeItem('${i.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderSummary(){
+  const count = state.items.reduce((s,i)=>s+i.qty,0);
+  const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
+  const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
+  const tax = subtotal*(taxPct/100);
+  const total = subtotal+tax;
+  document.getElementById('sumCount').textContent = count;
+  document.getElementById('sumSubtotal').textContent = fmt(subtotal);
+  document.getElementById('sumTax').textContent = fmt(tax);
+  document.getElementById('sumTotal').textContent = fmt(total);
+}
+
+async function finishTrip(){
+  if(!state.items.length){ showToast('السلة فاضية'); return; }
+  const count = state.items.reduce((s,i)=>s+i.qty,0);
+  const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
+  const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
+  const tax = subtotal*(taxPct/100);
+  const total = subtotal+tax;
+  const trip = {
+    id: uid(), date: state.date||todayISO(), store: state.store||'محل غير مسمى',
+    items: state.items, taxPercent: taxPct, itemCount: count, subtotal, tax, total
+  };
+  try{
+    await basketRef().collection('trips').doc(trip.id).set(trip);
+  }catch(e){ showToast('صار خطأ بالحفظ'); return; }
+
+  state = { store:'', date: todayISO(), taxPercent:'', items:[] };
+  try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){}
+  document.getElementById('storeName').value='';
+  document.getElementById('taxPercent').value='';
+  document.getElementById('tripDate').value = state.date;
+  renderCart(); renderSummary(); loadHistory();
+  showToast('تم حفظ الرحلة ✔');
+  switchTab('history');
+}
+
+function switchTab(tab){
+  const isCart = tab==='cart';
+  document.getElementById('cartTab').style.display = isCart?'block':'none';
+  document.getElementById('historyTab').style.display = isCart?'none':'block';
+  document.getElementById('summaryBar').style.display = isCart?'block':'none';
+  document.getElementById('tabCart').classList.toggle('active', isCart);
+  document.getElementById('tabHistory').classList.toggle('active', !isCart);
+}
+
+async function loadHistory(){
+  const box = document.getElementById('historyList');
+  if(!syncCode) return;
+  let idx = [];
+  try{
+    const snap = await basketRef().collection('trips').orderBy('date','desc').limit(50).get();
+    snap.forEach(doc=>{ const t = doc.data(); tripsCache[t.id] = t; idx.push(t); });
+  }catch(e){ console.error(e); }
+  if(!idx.length){
+    box.innerHTML = '<div class="empty-state"><div class="big">🧾</div>لا توجد رحلات محفوظة بعد</div>';
+    return;
+  }
+  box.innerHTML = idx.map(t=>`
+    <div class="trip-card" onclick="toggleTrip('${t.id}', this)">
+      <div class="trip-head">
+        <div>
+          <div class="trip-store">${escapeHtml(t.store)}</div>
+          <div class="trip-date">${t.date} · ${t.itemCount} منتج</div>
+        </div>
+        <div class="trip-total">${fmt(t.total)}</div>
+      </div>
+      <div class="trip-items" id="items-${t.id}"></div>
+    </div>
+  `).join('');
+}
+
+async function toggleTrip(id, cardEl){
+  const box = document.getElementById('items-'+id);
+  const open = box.classList.contains('open');
+  if(open){ box.classList.remove('open'); return; }
+  if(!box.dataset.loaded){
+    const trip = tripsCache[id];
+    if(trip){
+      box.innerHTML = trip.items.map(i=>`
+        <div class="receipt-line">
+          <span class="qty">×${i.qty}</span>
+          <span class="name">${escapeHtml(i.name)}</span>
+          <span class="dots"></span>
+          <span class="price">${fmt(i.price*i.qty)}</span>
+        </div>
+      `).join('') + `<div class="receipt-line" style="border-bottom:none;font-weight:800;"><span></span><span class="name">ضريبة ${trip.taxPercent||0}%</span><span class="dots"></span><span class="price">${fmt(trip.tax)}</span></div>`;
+      box.dataset.loaded = '1';
+    }
+  }
+  box.classList.add('open');
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---- Barcode camera scanning (best-effort; falls back to manual entry) ---- */
+async function openScanner(){
+  const modal = document.getElementById('scanModal');
+  const status = document.getElementById('scanStatus');
+  modal.classList.add('open');
+  status.textContent = 'جاري تشغيل الكاميرا...';
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+    const video = document.getElementById('scanVideo');
+    video.srcObject = scanStream;
+
+    if('BarcodeDetector' in window){
+      const detector = new window.BarcodeDetector();
+      status.textContent = 'وجّه الكاميرا نحو الباركود...';
+      detectorTimer = setInterval(async ()=>{
+        try{
+          const codes = await detector.detect(video);
+          if(codes.length){
+            document.getElementById('pBarcode').value = codes[0].rawValue;
+            checkBarcodePrice();
+            closeScanner();
+            showToast('تم مسح الباركود ✔');
+          }
+        }catch(e){}
+      }, 400);
+    } else {
+      status.textContent = 'المتصفح ما يدعم قراءة الباركود تلقائيًا — اكتب الرقم يدويًا بدل الكاميرا.';
+    }
+  }catch(e){
+    status.textContent = 'ما قدرنا نفتح الكاميرا (قد تكون الصلاحية مرفوضة). اكتب الباركود يدويًا.';
+  }
+}
+
+function closeScanner(){
+  document.getElementById('scanModal').classList.remove('open');
+  if(detectorTimer){ clearInterval(detectorTimer); detectorTimer=null; }
+  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
+}
+</script>
+</body>
+</html>
