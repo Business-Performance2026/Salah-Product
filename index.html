@@ -431,15 +431,12 @@ async function saveDraft(){
 
 async function loadDraft(){
   if(!syncCode) return;
-  try{
-    const doc = await basketRef().get();
-    if(doc.exists && doc.data().draft){ state = doc.data().draft; }
-  }catch(e){ console.error(e); }
-  if(!state.date) state.date = todayISO();
-  document.getElementById('storeName').value = state.store || '';
+  state = { store:'', date: todayISO(), taxPercent:'', discount:'', items:[] };
+  try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
+  document.getElementById('storeName').value = '';
   document.getElementById('tripDate').value = state.date;
-  document.getElementById('taxPercent').value = state.taxPercent || '';
-  document.getElementById('discountAmount').value = state.discount || '';
+  document.getElementById('taxPercent').value = '';
+  document.getElementById('discountAmount').value = '';
   renderCart(); renderSummary();
 }
 
