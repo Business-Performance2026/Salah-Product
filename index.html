@@ -492,7 +492,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v13'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v14'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -544,6 +544,7 @@ let statsVisible = false;
 })();
 
 function basketRef(){ return db.collection('baskets').doc(currentUser.uid); }
+function globalProductRef(barcode){ return db.collection('global_products').doc(barcode); }
 
 function sanitizeUsername(u){
   return u.trim().toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9_.-]/g,'');
@@ -700,6 +701,22 @@ async function loadProductsCache(){
     productsCache = snap.docs.map(d=>d.data());
   }catch(e){ console.error(e); }
   await backfillProductsFromHistory();
+  await mergeGlobalProducts();
+}
+
+async function mergeGlobalProducts(){
+  try{
+    const snap = await db.collection('global_products').limit(2000).get();
+    const known = new Set(productsCache.map(p=>p.name.trim().toLowerCase()));
+    snap.forEach(doc=>{
+      const g = doc.data();
+      const key = (g.name||'').trim().toLowerCase();
+      if(key && !known.has(key)){
+        known.add(key);
+        productsCache.push({name:g.name, unit:g.unit||'piece', barcode:doc.id, image:g.image||''}); // بدون سعر — مشترك بس بالاسم والصورة
+      }
+    });
+  }catch(e){ console.error(e); }
 }
 
 async function backfillProductsFromHistory(){
@@ -816,7 +833,7 @@ function renderSuggestions(){
   box.innerHTML = results.map((p,idx)=>`
     <div class="suggest-item" onclick="selectSuggestion(${idx})">
       <span class="sname">${escapeHtml(p.name)}</span>
-      <span class="sprice">${fmt(p.price)}</span>
+      <span class="sprice">${p.price!=null ? fmt(p.price) : 'منتج معروف'}</span>
     </div>
   `).join('');
   box.dataset.results = JSON.stringify(results);
@@ -829,11 +846,19 @@ function selectSuggestion(idx){
   if(!p) return;
   document.getElementById('pName').value = p.name;
   setUnitMode(p.unit || 'piece');
-  document.getElementById('pPrice').value = p.price;
   if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
   if(p.image){ currentImageDataUrl = p.image; showImagePreview(p.image); } else { removeProductImage(); }
-  refPriceInfo = p;
-  compareAndShow(p.price, p);
+  if(p.price != null){
+    document.getElementById('pPrice').value = p.price;
+    refPriceInfo = p;
+    compareAndShow(p.price, p);
+  } else {
+    document.getElementById('pPrice').value = '';
+    refPriceInfo = null;
+    document.getElementById('priceAlert').className = 'price-alert same';
+    document.getElementById('priceAlert').style.display = 'flex';
+    document.getElementById('priceAlert').textContent = '📦 منتج معروف من مستخدمين ثانين — هذي أول مرة تشتريه انت، اكتب سعرك';
+  }
   hideSuggestions();
 }
 
@@ -843,6 +868,20 @@ async function checkBarcodePrice(){
   refPriceInfo = null;
   if(!code){ alertBox.style.display='none'; return; }
   if(!currentUser) return;
+  alertBox.style.display='none';
+
+  // 1) الاسم/الوحدة/الصورة من القاعدة المشتركة بين كل المستخدمين (لو موجود)
+  try{
+    const gdoc = await globalProductRef(code).get();
+    if(gdoc.exists){
+      const g = gdoc.data();
+      document.getElementById('pName').value = document.getElementById('pName').value || g.name;
+      setUnitMode(g.unit || 'piece');
+      if(g.image){ currentImageDataUrl = g.image; showImagePreview(g.image); }
+    }
+  }catch(e){ /* تجاهل، القاعدة المشتركة اختيارية */ }
+
+  // 2) سعرك الخاص (تاريخك الشخصي بهذا الباركود)
   try{
     const doc = await basketRef().collection('products').doc(code).get();
     if(doc.exists){
@@ -853,10 +892,12 @@ async function checkBarcodePrice(){
       document.getElementById('pPrice').value = info.price;
       if(info.image){ currentImageDataUrl = info.image; showImagePreview(info.image); }
       compareAndShow(info.price, info);
-    } else {
-      alertBox.style.display='none';
+    } else if(document.getElementById('pName').value){
+      alertBox.className = 'price-alert same';
+      alertBox.style.display = 'flex';
+      alertBox.textContent = '📦 منتج معروف — هذي أول مرة تشتريه انت، اكتب سعرك';
     }
-  }catch(e){ alertBox.style.display='none'; }
+  }catch(e){}
 }
 
 document.addEventListener('input', (e)=>{
@@ -908,6 +949,15 @@ async function addItem(){
     const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
     if(ci>-1) productsCache[ci]=productInfo; else productsCache.push(productInfo);
   }catch(e){}
+
+  // شارك الاسم والوحدة والصورة بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
+  if(barcode){
+    try{
+      await globalProductRef(barcode).set({name, unit, image: currentImageDataUrl||''}, {merge:true});
+    }catch(e){
+      // لو الاسم يختلف عن التسجيل العام لنفس الباركود، قواعد الأمان ترفض التحديث — نتجاهلها بهدوء
+    }
+  }
 
   cancelEdit();
   saveDraft(); renderCart(); renderSummary();
