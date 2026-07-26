@@ -2,7 +2,7 @@
   "name": "مشترياتي - Mustryati",
   "short_name": "مشترياتي",
   "description": "تطبيق سلة التسوق - سجّل مشترياتك وتابع أسعارها",
-  "start_url": "./shopping-list-firebase.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
