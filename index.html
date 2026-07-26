@@ -216,6 +216,20 @@ input:focus{outline:none;border-color:var(--green);}
 .suggest-item .sprice{font-family:'JetBrains Mono';color:var(--muted);font-size:12.5px;}
 
 .edit-btn{background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:0 2px;flex-shrink:0;}
+
+.img-upload-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.img-preview-box{
+  width:56px;height:56px;border-radius:10px;border:1.5px dashed var(--line);background:var(--paper-2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden;position:relative;
+}
+.img-preview-box img{width:100%;height:100%;object-fit:cover;}
+.img-preview-box .plus{font-size:20px;color:var(--muted);}
+.img-remove-btn{
+  position:absolute;top:-4px;left:-4px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;
+  border:none;font-size:11px;line-height:18px;text-align:center;cursor:pointer;padding:0;display:none;
+}
+.img-upload-row .label-text{font-size:12.5px;color:var(--muted);font-weight:600;}
+.receipt-line .thumb{width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;}
 .editing-banner{
   background:#FFF6E0;color:#8A6100;font-size:12px;font-weight:600;padding:7px 10px;
   border-radius:8px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;
@@ -294,6 +308,15 @@ input:focus{outline:none;border-color:var(--green);}
       <div class="field">
         <label>السعر (للقطعة)</label>
         <input type="number" id="pPrice" placeholder="0.000" step="0.001" min="0">
+      </div>
+      <div class="img-upload-row">
+        <div class="img-preview-box" id="imgPreviewBox" onclick="document.getElementById('pImage').click()">
+          <span class="plus" id="imgPlusIcon">📷</span>
+          <img id="imgPreview" style="display:none;">
+          <button class="img-remove-btn" id="imgRemoveBtn" onclick="event.stopPropagation(); removeProductImage()">✕</button>
+        </div>
+        <span class="label-text">صورة المنتج (اختياري)</span>
+        <input type="file" id="pImage" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
       </div>
       <div class="field">
         <label>الباركود (اختياري)</label>
@@ -385,6 +408,7 @@ let syncCode = localStorage.getItem('syncCode') || '';
 let productsCache = [];
 let editingItemId = null;
 let editingTripId = null;
+let currentImageDataUrl = '';
 let tripsCache = {};
 
 /* ---- PWA: home screen icon (silent, no install prompts) ---- */
@@ -483,7 +507,7 @@ async function backfillProductsFromHistory(){
         const key = (item.name||'').trim().toLowerCase();
         if(key && !known.has(key)){
           known.add(key);
-          const info = {name:item.name, price:item.price, barcode:item.barcode||'', date:trip.date, store:trip.store||''};
+          const info = {name:item.name, price:item.price, barcode:item.barcode||'', image:item.image||'', date:trip.date, store:trip.store||''};
           productsCache.push(info);
           toAdd.push(info);
         }
@@ -498,6 +522,47 @@ async function backfillProductsFromHistory(){
 
 function slugify(name){
   return name.trim().toLowerCase().replace(/\//g,'_').replace(/\s+/g,'-').slice(0,120) || uid();
+}
+
+function handleImageSelect(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxDim = 300;
+      let w = img.width, h = img.height;
+      if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+      else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      currentImageDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      showImagePreview(currentImageDataUrl);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function showImagePreview(dataUrl){
+  const preview = document.getElementById('imgPreview');
+  preview.src = dataUrl;
+  preview.style.display = 'block';
+  document.getElementById('imgPlusIcon').style.display = 'none';
+  document.getElementById('imgRemoveBtn').style.display = 'block';
+}
+
+function removeProductImage(){
+  currentImageDataUrl = '';
+  const preview = document.getElementById('imgPreview');
+  preview.src = '';
+  preview.style.display = 'none';
+  document.getElementById('imgPlusIcon').style.display = 'block';
+  document.getElementById('imgRemoveBtn').style.display = 'none';
 }
 
 function hideSuggestions(){
@@ -529,6 +594,7 @@ function selectSuggestion(idx){
   document.getElementById('pName').value = p.name;
   document.getElementById('pPrice').value = p.price;
   if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
+  if(p.image){ currentImageDataUrl = p.image; showImagePreview(p.image); } else { removeProductImage(); }
   refPriceInfo = p;
   compareAndShow(p.price, p);
   hideSuggestions();
@@ -547,6 +613,7 @@ async function checkBarcodePrice(){
       refPriceInfo = info;
       document.getElementById('pName').value = document.getElementById('pName').value || info.name;
       document.getElementById('pPrice').value = info.price;
+      if(info.image){ currentImageDataUrl = info.image; showImagePreview(info.image); }
       compareAndShow(info.price, info);
     } else {
       alertBox.style.display='none';
@@ -588,13 +655,13 @@ async function addItem(){
 
   if(editingItemId){
     const idx = state.items.findIndex(i=>i.id===editingItemId);
-    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, barcode };
+    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, barcode, image: currentImageDataUrl };
   } else {
-    state.items.push({ id: uid(), name, price, qty, barcode });
+    state.items.push({ id: uid(), name, price, qty, barcode, image: currentImageDataUrl });
   }
 
   const productId = barcode || slugify(name);
-  const productInfo = {name, price, barcode: barcode||'', date: state.date||todayISO(), store: state.store||''};
+  const productInfo = {name, price, barcode: barcode||'', image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
   try{
     await basketRef().collection('products').doc(productId).set(productInfo);
     const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
@@ -613,6 +680,7 @@ function editItem(id){
   document.getElementById('pPrice').value = item.price;
   document.getElementById('pQty').value = item.qty;
   document.getElementById('pBarcode').value = item.barcode || '';
+  if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); } else { removeProductImage(); }
   document.getElementById('editingBanner').classList.add('show');
   document.getElementById('addBtn').textContent = '💾 حفظ التعديل';
   window.scrollTo({top:0, behavior:'smooth'});
@@ -628,6 +696,7 @@ function cancelEdit(){
   document.getElementById('priceAlert').style.display='none';
   document.getElementById('editingBanner').classList.remove('show');
   document.getElementById('addBtn').textContent = '+ أضف للسلة';
+  removeProductImage();
   hideSuggestions();
 }
 
@@ -654,6 +723,7 @@ function renderCart(){
   }
   list.innerHTML = state.items.map(i=>`
     <div class="receipt-line">
+      ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
       <span class="qty">×${i.qty}</span>
       <span class="name">${escapeHtml(i.name)}</span>
       <span class="dots"></span>
@@ -767,6 +837,7 @@ async function toggleTrip(id, cardEl){
     if(trip){
       box.innerHTML = trip.items.map(i=>`
         <div class="receipt-line">
+          ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
           <span class="qty">×${i.qty}</span>
           <span class="name">${escapeHtml(i.name)}</span>
           <span class="dots"></span>
@@ -840,7 +911,8 @@ async function shareTripPDF(id){
       <div style="font-family:Tajawal,sans-serif;font-weight:700;font-size:15px;color:#241F4E;">${escapeHtml(trip.store)}</div>
       <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date}</div>
       ${trip.items.map(i=>`
-        <div style="display:flex;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
+          ${i.image ? `<img src="${i.image}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
           <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">×${i.qty}</span>
           <span style="flex:1;font-weight:600;">${escapeHtml(i.name)}</span>
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty)}</span>
