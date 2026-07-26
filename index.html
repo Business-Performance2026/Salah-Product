@@ -408,12 +408,6 @@ input:focus{outline:none;border-color:var(--green);}
       <span>الخصم / التخفيض</span>
       <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
     </div>
-    <div id="budgetBox" style="display:none;">
-      <div class="summary-row" style="padding-top:6px;"><span id="budgetLabel">الميزانية</span><span class="val" id="budgetRemaining"></span></div>
-      <div style="background:rgba(255,255,255,.15);border-radius:99px;height:7px;overflow:hidden;margin-bottom:6px;">
-        <div id="budgetBarFill" style="height:100%;border-radius:99px;width:0%;background:#fff;transition:width .2s;"></div>
-      </div>
-    </div>
     <div class="summary-row total"><span>الإجمالي</span><span class="val" id="sumTotal">0.000</span></div>
     <button class="finish-btn" onclick="finishTrip()">✔ إنهاء التسوق وحفظه</button>
   </div>
@@ -445,9 +439,36 @@ input:focus{outline:none;border-color:var(--green);}
   </div>
 </div>
 
+<!-- Budget warning modal -->
+<div class="modal-bg" id="budgetModal">
+  <div class="modal" style="position:relative;">
+    <button onclick="closeBudgetModal()" style="position:absolute;top:10px;left:10px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px;">✕</button>
+    <div style="font-size:38px;margin-bottom:6px;">⚠️</div>
+    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--red);margin:0 0 8px;">تجاوزت ميزانية تسوقك</h2>
+    <p id="budgetModalText" style="margin-bottom:6px;"></p>
+    <button onclick="closeBudgetModal()" style="width:100%;margin-top:8px;">تمام، أكمل تسوقي</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+/* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
+(function forceRefreshIfOutdated(){
+  const APP_VERSION = 'v8'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const KEY = 'mushtriyati_app_version';
+  const stored = localStorage.getItem(KEY);
+  if(stored && stored !== APP_VERSION){
+    localStorage.setItem(KEY, APP_VERSION);
+    const url = new URL(location.href);
+    url.searchParams.set('_r', Date.now());
+    location.replace(url.toString());
+    throw new Error('reloading with fresh version'); // يوقف تنفيذ باقي السكربت بهذي المحاولة
+  } else if(!stored){
+    localStorage.setItem(KEY, APP_VERSION);
+  }
+})();
+
 /* ====== 1) عدّل بياناتك من Firebase Console هنا ====== */
 const firebaseConfig = {
   apiKey: "AIzaSyDPu5CxTqUNDPLWYHlz7MfcilWc_yq-SBk",
@@ -576,7 +597,7 @@ async function saveDraft(){
 
 async function loadDraft(){
   if(!currentUser) return;
-  state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] };
+  state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] }; budgetWarningShown=false;
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
   document.getElementById('storeName').value = '';
   document.getElementById('tripDate').value = state.date;
@@ -900,26 +921,26 @@ function renderSummary(){
   adjustBodyPadding();
 }
 
+let budgetWarningShown = false;
+
 function renderBudgetBar(total){
   const budget = parseFloat(document.getElementById('budgetAmount').value)||0;
-  const box = document.getElementById('budgetBox');
-  if(!budget){ box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  const pct = Math.min(100, (total/budget)*100);
-  const fill = document.getElementById('budgetBarFill');
-  fill.style.width = pct + '%';
-  const remaining = budget - total;
-  const label = document.getElementById('budgetLabel');
-  const remainingEl = document.getElementById('budgetRemaining');
-  if(remaining >= 0){
-    label.textContent = 'الميزانية (' + fmt(budget) + ')';
-    remainingEl.textContent = 'متبقي ' + fmt(remaining);
-    fill.style.background = pct > 80 ? '#F0A73C' : '#fff';
+  if(!budget){ budgetWarningShown = false; return; }
+  const over = total - budget;
+  if(over > 0){
+    if(!budgetWarningShown){
+      budgetWarningShown = true;
+      document.getElementById('budgetModalText').textContent =
+        `ميزانيتك ${fmt(budget)} ومجموعك الحالي ${fmt(total)} — يعني تجاوزت بمقدار ${fmt(over)}.`;
+      document.getElementById('budgetModal').classList.add('open');
+    }
   } else {
-    label.textContent = '⚠️ تجاوزت الميزانية';
-    remainingEl.textContent = '+' + fmt(Math.abs(remaining));
-    fill.style.background = '#FF8A80';
+    budgetWarningShown = false;
   }
+}
+
+function closeBudgetModal(){
+  document.getElementById('budgetModal').classList.remove('open');
 }
 
 function adjustBodyPadding(){
@@ -949,7 +970,7 @@ async function finishTrip(){
 
   const wasEditing = !!editingTripId;
   editingTripId = null;
-  state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] };
+  state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] }; budgetWarningShown=false;
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){}
   document.getElementById('storeName').value='';
   document.getElementById('taxPercent').value='';
