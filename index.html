@@ -229,6 +229,15 @@ input:focus{outline:none;border-color:var(--green);}
 .suggest-item .sname{font-weight:600;}
 .suggest-item .sprice{font-family:'JetBrains Mono';color:var(--muted);font-size:12.5px;}
 
+.currency-item{
+  padding:10px 12px;font-size:13.5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  border-bottom:1px solid var(--paper-2);border-radius:8px;
+}
+.currency-item:hover{background:var(--paper-2);}
+.currency-item.selected{background:var(--paper-2);border:1px solid var(--green);}
+.currency-item .cname{font-weight:600;}
+.currency-item .ccode{font-family:'JetBrains Mono';color:var(--muted);font-size:12px;}
+
 .edit-btn{background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:0 2px;flex-shrink:0;}
 
 .img-upload-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
@@ -293,7 +302,8 @@ input:focus{outline:none;border-color:var(--green);}
 
   <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
     👤 مسجّل باسم: <b id="userLabel">—</b>
-    <button onclick="logOut()" style="margin-right:auto;background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">تسجيل خروج</button>
+    <button onclick="openCurrencyModal()" id="currencyBadgeBtn" style="margin-right:auto;background:var(--paper-2);border:1px solid var(--line);border-radius:999px;color:var(--green-dark);font-size:11px;font-weight:700;cursor:pointer;padding:3px 10px;">🌍 —</button>
+    <button onclick="logOut()" style="background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">تسجيل خروج</button>
   </div>
 
   <!-- CART TAB -->
@@ -432,7 +442,7 @@ input:focus{outline:none;border-color:var(--green);}
         <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
       </div>
     </div>
-    <div class="summary-row total"><span>الإجمالي</span><span class="val" id="sumTotal">0.000</span></div>
+    <div class="summary-row total"><span>الإجمالي</span><span class="val"><span id="sumTotal">0.000</span> <span id="sumCurrencySymbol" style="font-size:12px;color:var(--amber);"></span></span></div>
     <button class="finish-btn" onclick="finishTrip()">✔ إنهاء التسوق وحفظه</button>
   </div>
 </div>
@@ -476,6 +486,16 @@ input:focus{outline:none;border-color:var(--green);}
   </div>
 </div>
 
+<!-- Currency modal -->
+<div class="modal-bg" id="currencyModal">
+  <div class="modal sync-modal" style="max-height:80vh;display:flex;flex-direction:column;">
+    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">اختر عملتك</h2>
+    <input type="text" id="currencySearch" placeholder="ابحث عن عملة..." oninput="renderCurrencyList()" style="margin-bottom:10px;">
+    <div id="currencyList" style="overflow-y:auto;flex:1;text-align:right;"></div>
+    <button onclick="closeCurrencyModal()" style="width:100%;margin-top:10px;background:var(--paper-2);color:var(--ink);">إغلاق</button>
+  </div>
+</div>
+
 <!-- Budget warning modal -->
 <div class="modal-bg" id="budgetModal">
   <div class="modal" style="position:relative;">
@@ -492,7 +512,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v14'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v15'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -529,6 +549,7 @@ let currentUser = null;
 let productsCache = [];
 let editingItemId = null;
 let editingTripId = null;
+let editingTripCurrencyCode = null;
 let currentImageDataUrl = '';
 let currentUnit = 'piece';
 let tripsCache = {};
@@ -646,6 +667,7 @@ auth.onAuthStateChanged(async (user)=>{
     await loadDraft();
     loadHistory();
     loadProductsCache();
+    loadCurrencyPreference();
   } else {
     document.getElementById('authFormScreen').style.display = 'none';
     document.getElementById('authChoiceScreen').style.display = 'block';
@@ -655,7 +677,127 @@ auth.onAuthStateChanged(async (user)=>{
 });
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
-function fmt(n){ return (Math.round(n*1000)/1000).toFixed(3); }
+
+/* ---- العملات ---- */
+const CURRENCIES = [
+  {code:'OMR', name:'ريال عماني', symbol:'ر.ع', decimals:3},
+  {code:'SAR', name:'ريال سعودي', symbol:'ر.س', decimals:2},
+  {code:'AED', name:'درهم إماراتي', symbol:'د.إ', decimals:2},
+  {code:'KWD', name:'دينار كويتي', symbol:'د.ك', decimals:3},
+  {code:'BHD', name:'دينار بحريني', symbol:'د.ب', decimals:3},
+  {code:'QAR', name:'ريال قطري', symbol:'ر.ق', decimals:2},
+  {code:'USD', name:'دولار أمريكي', symbol:'$', decimals:2},
+  {code:'EUR', name:'يورو', symbol:'€', decimals:2},
+  {code:'GBP', name:'جنيه إسترليني', symbol:'£', decimals:2},
+  {code:'EGP', name:'جنيه مصري', symbol:'ج.م', decimals:2},
+  {code:'JOD', name:'دينار أردني', symbol:'د.أ', decimals:3},
+  {code:'LBP', name:'ليرة لبنانية', symbol:'ل.ل', decimals:2},
+  {code:'IQD', name:'دينار عراقي', symbol:'د.ع', decimals:0},
+  {code:'SYP', name:'ليرة سورية', symbol:'ل.س', decimals:2},
+  {code:'YER', name:'ريال يمني', symbol:'ر.ي', decimals:2},
+  {code:'SDG', name:'جنيه سوداني', symbol:'ج.س', decimals:2},
+  {code:'MAD', name:'درهم مغربي', symbol:'د.م', decimals:2},
+  {code:'DZD', name:'دينار جزائري', symbol:'د.ج', decimals:2},
+  {code:'TND', name:'دينار تونسي', symbol:'د.ت', decimals:3},
+  {code:'LYD', name:'دينار ليبي', symbol:'د.ل', decimals:3},
+  {code:'TRY', name:'ليرة تركية', symbol:'₺', decimals:2},
+  {code:'PKR', name:'روبية باكستانية', symbol:'₨', decimals:2},
+  {code:'INR', name:'روبية هندية', symbol:'₹', decimals:2},
+  {code:'BDT', name:'تاكا بنغلاديشية', symbol:'৳', decimals:2},
+  {code:'LKR', name:'روبية سريلانكية', symbol:'Rs', decimals:2},
+  {code:'NPR', name:'روبية نيبالية', symbol:'Rs', decimals:2},
+  {code:'PHP', name:'بيزو فلبيني', symbol:'₱', decimals:2},
+  {code:'JPY', name:'ين ياباني', symbol:'¥', decimals:0},
+  {code:'CNY', name:'يوان صيني', symbol:'¥', decimals:2},
+  {code:'KRW', name:'وون كوري', symbol:'₩', decimals:0},
+  {code:'CAD', name:'دولار كندي', symbol:'$', decimals:2},
+  {code:'AUD', name:'دولار أسترالي', symbol:'$', decimals:2},
+  {code:'CHF', name:'فرنك سويسري', symbol:'Fr', decimals:2},
+  {code:'RUB', name:'روبل روسي', symbol:'₽', decimals:2},
+  {code:'ZAR', name:'راند جنوب أفريقي', symbol:'R', decimals:2},
+  {code:'SEK', name:'كرونة سويدية', symbol:'kr', decimals:2},
+  {code:'NOK', name:'كرونة نرويجية', symbol:'kr', decimals:2},
+];
+let currentCurrency = CURRENCIES[0]; // fallback مبدئي (يتحدد أوتوماتيكياً أو يدوياً بعدين)
+
+function fmt(n, currOverride){
+  const c = currOverride || currentCurrency;
+  const d = c.decimals;
+  return (Math.round((n||0)*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);
+}
+function currencyByCode(code){
+  return CURRENCIES.find(c=>c.code===code) || currentCurrency;
+}
+
+function updateCurrencyBadge(){
+  document.getElementById('currencyBadgeBtn').textContent = '🌍 ' + currentCurrency.symbol + ' (' + currentCurrency.code + ')';
+}
+
+async function loadCurrencyPreference(){
+  if(!currentUser) return;
+  try{
+    const doc = await basketRef().get();
+    const savedCode = doc.exists && doc.data().currency;
+    if(savedCode){
+      const found = CURRENCIES.find(c=>c.code===savedCode);
+      if(found) currentCurrency = found;
+      updateCurrencyBadge();
+      renderCart(); renderSummary(); loadHistory();
+      return;
+    }
+  }catch(e){ console.error(e); }
+  // ما فيه تفضيل محفوظ — نحاول نكتشف الدولة من الإنترنت تلقائياً
+  await detectCurrencyByIP();
+  updateCurrencyBadge();
+  renderCart(); renderSummary(); loadHistory();
+}
+
+async function detectCurrencyByIP(){
+  try{
+    const res = await fetch('https://ipapi.co/json/');
+    const data = await res.json();
+    if(data && data.currency){
+      const found = CURRENCIES.find(c=>c.code===data.currency);
+      if(found){
+        currentCurrency = found;
+        try{ await basketRef().set({currency: found.code}, {merge:true}); }catch(e){}
+      }
+    }
+  }catch(e){ /* فشل الاكتشاف التلقائي — نضل على القيمة الافتراضية */ }
+}
+
+function openCurrencyModal(){
+  document.getElementById('currencySearch').value = '';
+  renderCurrencyList();
+  document.getElementById('currencyModal').classList.add('open');
+}
+function closeCurrencyModal(){
+  document.getElementById('currencyModal').classList.remove('open');
+}
+
+function renderCurrencyList(){
+  const q = document.getElementById('currencySearch').value.trim().toLowerCase();
+  const list = CURRENCIES.filter(c=> !q || c.name.includes(q) || c.code.toLowerCase().includes(q));
+  const box = document.getElementById('currencyList');
+  box.innerHTML = list.map(c=>`
+    <div class="currency-item ${c.code===currentCurrency.code?'selected':''}" onclick="selectCurrency('${c.code}')">
+      <span class="cname">${c.name}</span>
+      <span class="ccode">${c.symbol} · ${c.code}</span>
+    </div>
+  `).join('') || '<div style="padding:14px;color:var(--muted);font-size:13px;">ما فيه نتائج</div>';
+}
+
+async function selectCurrency(code){
+  const found = CURRENCIES.find(c=>c.code===code);
+  if(!found) return;
+  currentCurrency = found;
+  updateCurrencyBadge();
+  closeCurrencyModal();
+  renderCart(); renderSummary(); loadHistory();
+  try{ await basketRef().set({currency: found.code}, {merge:true}); }catch(e){}
+  showToast('تم تغيير العملة إلى ' + found.name);
+}
+
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function showToast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
@@ -1039,6 +1181,7 @@ function renderSummary(){
   document.getElementById('sumSubtotal').textContent = fmt(subtotal);
   document.getElementById('sumTax').textContent = fmt(tax);
   document.getElementById('sumTotal').textContent = fmt(total);
+  document.getElementById('sumCurrencySymbol').textContent = currentCurrency.symbol;
   renderBudgetBar(total);
   adjustBodyPadding();
 }
@@ -1091,9 +1234,10 @@ async function finishTrip(){
   const tax = subtotal*(taxPct/100);
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
+  const tripCurrencyCode = editingTripId ? (editingTripCurrencyCode || currentCurrency.code) : currentCurrency.code;
   const trip = {
     id: editingTripId || uid(), date: state.date||todayISO(), store: state.store||'محل غير مسمى',
-    items: state.items, taxPercent: taxPct, discount, itemCount: count, subtotal, tax, total
+    items: state.items, taxPercent: taxPct, discount, itemCount: count, subtotal, tax, total, currency: tripCurrencyCode
   };
   try{
     await basketRef().collection('trips').doc(trip.id).set(trip);
@@ -1101,6 +1245,7 @@ async function finishTrip(){
 
   const wasEditing = !!editingTripId;
   editingTripId = null;
+  editingTripCurrencyCode = null;
   state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] }; budgetWarningShown=false;
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){}
   document.getElementById('storeName').value='';
@@ -1291,14 +1436,16 @@ async function loadHistory(){
     box.innerHTML = '<div class="empty-state"><div class="big">🧾</div>لا توجد رحلات محفوظة بعد</div>';
     return;
   }
-  box.innerHTML = idx.map(t=>`
+  box.innerHTML = idx.map(t=>{
+    const tc = currencyByCode(t.currency);
+    return `
     <div class="trip-card" onclick="toggleTrip('${t.id}', this)">
       <div class="trip-head">
         <div>
           <div class="trip-store">${escapeHtml(t.store)}</div>
           <div class="trip-date">${t.date} · ${t.itemCount} منتج</div>
         </div>
-        <div class="trip-total">${fmt(t.total)}</div>
+        <div class="trip-total">${fmt(t.total, tc)} <span style="font-size:11px;color:var(--muted);">${tc.symbol}</span></div>
       </div>
       <div class="trip-items" id="items-${t.id}"></div>
       <div class="trip-actions" onclick="event.stopPropagation()">
@@ -1307,7 +1454,7 @@ async function loadHistory(){
         <button class="danger" onclick="deleteTrip('${t.id}')">🗑 حذف</button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 async function toggleTrip(id, cardEl){
@@ -1317,15 +1464,16 @@ async function toggleTrip(id, cardEl){
   if(!box.dataset.loaded){
     const trip = tripsCache[id];
     if(trip){
+      const tc = currencyByCode(trip.currency);
       box.innerHTML = trip.items.map(i=>`
         <div class="receipt-line">
           ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
           <span class="qty">${formatQty(i)}</span>
           <span class="name">${escapeHtml(i.name)}</span>
           <span class="dots"></span>
-          <span class="price">${fmt(i.price*i.qty)}</span>
+          <span class="price">${fmt(i.price*i.qty, tc)}</span>
         </div>
-      `).join('') + `<div class="receipt-line" style="border-bottom:none;font-weight:800;"><span></span><span class="name">ضريبة ${trip.taxPercent||0}%</span><span class="dots"></span><span class="price">${fmt(trip.tax)}</span></div>` + (trip.discount ? `<div class="receipt-line" style="border-bottom:none;font-weight:800;color:var(--red);"><span></span><span class="name">خصم</span><span class="dots"></span><span class="price">-${fmt(trip.discount)}</span></div>` : '');
+      `).join('') + `<div class="receipt-line" style="border-bottom:none;font-weight:800;"><span></span><span class="name">ضريبة ${trip.taxPercent||0}%</span><span class="dots"></span><span class="price">${fmt(trip.tax, tc)}</span></div>` + (trip.discount ? `<div class="receipt-line" style="border-bottom:none;font-weight:800;color:var(--red);"><span></span><span class="name">خصم</span><span class="dots"></span><span class="price">-${fmt(trip.discount, tc)}</span></div>` : '');
       box.dataset.loaded = '1';
     }
   }
@@ -1337,6 +1485,7 @@ async function editTrip(id){
   if(!trip) return;
   if(state.items.length && !confirm('عندك سلة حالية فيها منتجات، بتنستبدل بمحتوى الفاتورة المطلوب تعديلها. تكمل؟')) return;
   editingTripId = id;
+  editingTripCurrencyCode = trip.currency || currentCurrency.code;
   state = { store: trip.store, date: trip.date, taxPercent: trip.taxPercent || '', discount: trip.discount || '', budget:'', items: trip.items.map(i=>({...i})) };
   document.getElementById('storeName').value = state.store;
   document.getElementById('tripDate').value = state.date;
@@ -1382,6 +1531,7 @@ async function shareTripPDF(id){
     }
 
     const logoSrc = document.querySelector('.mark img').src;
+    const tc = currencyByCode(trip.currency);
     const wrap = document.createElement('div');
     wrap.style.cssText = 'position:fixed;top:0;left:-9999px;width:380px;background:#fff;padding:22px 20px;font-family:Cairo,sans-serif;direction:rtl;z-index:-1;';
     wrap.innerHTML = `
@@ -1392,20 +1542,20 @@ async function shareTripPDF(id){
       </div>
       <div style="border-top:2px dashed #E1DBF0;margin:10px 0;"></div>
       <div style="font-family:Tajawal,sans-serif;font-weight:700;font-size:15px;color:#241F4E;">${escapeHtml(trip.store)}</div>
-      <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date}</div>
+      <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date} · ${tc.name} (${tc.symbol})</div>
       ${trip.items.map(i=>`
         <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
           ${i.image ? `<img src="${i.image}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
           <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">${formatQty(i)}</span>
           <span style="flex:1;font-weight:600;">${escapeHtml(i.name)}</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty)}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty, tc)}</span>
         </div>
       `).join('')}
       <div style="border-top:2px dashed #E1DBF0;margin:12px 0 8px;"></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax)}</span></div>
-      ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount)}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal, tc)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax, tc)}</span></div>
+      ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount, tc)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total, tc)} ${tc.symbol}</span></div>
     `;
     document.body.appendChild(wrap);
 
