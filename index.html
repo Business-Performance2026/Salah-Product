@@ -843,19 +843,37 @@ async function shareTripPDF(id){
   `;
   document.body.appendChild(wrap);
 
+  if(typeof html2canvas === 'undefined' || !window.jspdf){
+    document.body.removeChild(wrap);
+    showToast('مكتبة إنشاء PDF ما تحمّلت (تأكد من الإنترنت وحدّث الصفحة)');
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+    return;
+  }
+
+  let pdf, pdfFile, fileName;
   try{
-    const canvas = await html2canvas(wrap, {scale:2, backgroundColor:'#ffffff'});
+    const canvas = await html2canvas(wrap, {scale:2, backgroundColor:'#ffffff', useCORS:true});
     document.body.removeChild(wrap);
     const imgData = canvas.toDataURL('image/png');
     const { jsPDF } = window.jspdf;
     const pdfWidth = 100;
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    const pdf = new jsPDF({unit:'mm', format:[pdfWidth, pdfHeight]});
+    pdf = new jsPDF({unit:'mm', format:[pdfWidth, pdfHeight]});
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    const fileName = `فاتورة-${trip.store}-${trip.date}.pdf`.replace(/[\/\\]/g,'-');
+    fileName = `فاتورة-${trip.store}-${trip.date}.pdf`.replace(/[\/\\]/g,'-');
     const pdfBlob = pdf.output('blob');
-    const pdfFile = new File([pdfBlob], fileName, {type:'application/pdf'});
+    pdfFile = new File([pdfBlob], fileName, {type:'application/pdf'});
+  }catch(e){
+    console.error('PDF generation error:', e);
+    if(document.body.contains(wrap)) document.body.removeChild(wrap);
+    showToast('صار خطأ بإنشاء ملف PDF: ' + (e && e.message ? e.message : 'غير معروف'));
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+    return;
+  }
 
+  try{
     if(navigator.canShare && navigator.canShare({files:[pdfFile]})){
       await navigator.share({files:[pdfFile], title:'فاتورة مشترياتي', text:`فاتورة ${trip.store} - ${trip.date}`});
     } else {
@@ -863,9 +881,13 @@ async function shareTripPDF(id){
       showToast('تم تحميل ملف PDF');
     }
   }catch(e){
-    console.error(e);
-    if(document.body.contains(wrap)) document.body.removeChild(wrap);
-    showToast('صار خطأ بإنشاء الملف');
+    if(e && (e.name === 'AbortError' || e.name === 'NotAllowedError')){
+      // المستخدم لغى المشاركة أو أغلق النافذة — الملف اتسوّى صح، بس ما تمت المشاركة
+    } else {
+      console.error('Share error:', e);
+      pdf.save(fileName);
+      showToast('تعذّرت المشاركة المباشرة، تم تحميل الملف بدالها');
+    }
   }
   btn.textContent = originalLabel;
   btn.disabled = false;
