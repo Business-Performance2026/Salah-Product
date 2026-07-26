@@ -376,11 +376,13 @@ input:focus{outline:none;border-color:var(--green);}
 <div class="modal-bg" id="syncModal">
   <div class="modal sync-modal">
     <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">كود المزامنة</h2>
-    <p>هذا الكود يربط بياناتك بين كل أجهزتك. اكتب أي كود تختاره أول مرة (مثلاً اسم عائلتك + رقم)، وسجّله بنفس الكود بأي جهاز ثاني تبي بياناته تتزامن معه.</p>
+    <p>هذا الكود يربط بياناتك بين كل أجهزتك. اختر كود مميز (مثلاً اسم عائلتك + رقم).</p>
     <div class="field">
       <input type="text" id="syncCodeInput" placeholder="مثال: alrashid-2026">
     </div>
-    <button onclick="saveSyncCode()">حفظ والمتابعة</button>
+    <div id="syncCodeMsg" style="display:none;font-size:12.5px;font-weight:600;color:var(--red);margin-bottom:10px;text-align:right;"></div>
+    <button onclick="saveSyncCode(true)" style="width:100%;margin-bottom:8px;">🆕 هذا كود جديد (أول مرة)</button>
+    <button onclick="saveSyncCode(false)" style="width:100%;background:var(--paper-2);color:var(--ink);">🔗 عندي هذا الكود مسبقاً، اربط الجهاز</button>
   </div>
 </div>
 
@@ -428,11 +430,34 @@ function basketRef(){ return db.collection('baskets').doc(syncCode); }
 
 function openSyncModal(){
   document.getElementById('syncCodeInput').value = syncCode;
+  document.getElementById('syncCodeMsg').style.display = 'none';
   document.getElementById('syncModal').classList.add('open');
 }
-function saveSyncCode(){
+
+async function saveSyncCode(isNewCode){
   const v = document.getElementById('syncCodeInput').value.trim();
+  const msgBox = document.getElementById('syncCodeMsg');
+  msgBox.style.display = 'none';
   if(!v){ showToast('اكتب كود'); return; }
+  if(v.length < 4){ msgBox.textContent = 'الكود قصير جداً، اختر كود أطول وأصعب تخمينه'; msgBox.style.display='block'; return; }
+
+  const tempRef = db.collection('baskets').doc(v);
+
+  if(isNewCode){
+    try{
+      const doc = await tempRef.get();
+      if(doc.exists && doc.data().claimed){
+        msgBox.textContent = 'لا يمكن التسجيل بهذا الكود لأنه غير متوفر — جرب كود ثاني';
+        msgBox.style.display = 'block';
+        return;
+      }
+      await tempRef.set({claimed:true, claimedAt:new Date().toISOString()}, {merge:true});
+    }catch(e){
+      showToast('صار خطأ، حاول مرة ثانية');
+      return;
+    }
+  }
+
   syncCode = v;
   localStorage.setItem('syncCode', syncCode);
   document.getElementById('syncCodeLabel').textContent = syncCode;
