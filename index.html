@@ -12,6 +12,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="مشترياتي">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&family=Cairo:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
 
@@ -272,8 +275,8 @@ input:focus{outline:none;border-color:var(--green);}
     </div>
     <div style="display:flex;gap:5px;">
       <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')">السلة</button>
-      <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')">التحضير</button>
       <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">السجل</button>
+      <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')">الروشن</button>
     </div>
   </header>
 
@@ -297,7 +300,7 @@ input:focus{outline:none;border-color:var(--green);}
         </div>
       </div>
       <div class="field" style="margin-bottom:0;">
-        <label>الميزانية لهذي الرحلة (اختياري)</label>
+        <label>حدد ميزانية تسوقك (اختياري)</label>
         <input type="number" id="budgetAmount" placeholder="مثال: 300" min="0" step="1">
       </div>
     </div>
@@ -360,7 +363,7 @@ input:focus{outline:none;border-color:var(--green);}
   <!-- PREP LIST TAB -->
   <div id="prepTab" style="display:none;">
     <div class="card">
-      <h2>🛍️ قائمة التحضير</h2>
+      <h2>🛍️ قائمة الروشن</h2>
       <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">جهّزها من البيت قبل لا تروح السوق، وعلّم على كل شي أول ما تحطه بالسلة.</p>
       <div class="row">
         <div class="field" style="margin-bottom:0;">
@@ -474,17 +477,12 @@ let tripsCache = {};
 let prepListCache = [];
 let statsVisible = false;
 
-/* ---- PWA: home screen icon (silent, no install prompts) ---- */
-(function registerServiceWorker(){
+/* ---- PWA: تنظيف أي service worker قديم كان يسبب مشكلة عرض نسخة قديمة ---- */
+(function cleanupOldServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
-  const swCode = `
-    self.addEventListener('install', e=>self.skipWaiting());
-    self.addEventListener('activate', e=>self.clients.claim());
-    self.addEventListener('fetch', e=>{});
-  `;
-  const blob = new Blob([swCode], {type:'application/javascript'});
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(()=>{});
+  navigator.serviceWorker.getRegistrations().then(regs=>{
+    regs.forEach(reg=>reg.unregister());
+  }).catch(()=>{});
 })();
 
 function basketRef(){ return db.collection('baskets').doc(currentUser.uid); }
@@ -976,7 +974,7 @@ function switchTab(tab){
   if(tab==='prep'){ loadPrepList(); }
 }
 
-/* ---- قائمة التحضير ---- */
+/* ---- قائمة الروشن ---- */
 async function loadPrepList(){
   if(!currentUser) return;
   try{
@@ -997,7 +995,7 @@ function renderPrepList(){
       <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green);">
       <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(p.name)}</span>
       <span class="dots"></span>
-      <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" title="أضف للسلة">🛒</button>
+      <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">أضف لسلة</button>
       <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
     </div>
   `).join('');
@@ -1030,7 +1028,7 @@ function deletePrepItem(id){
 
 function clearPrepList(){
   if(!prepListCache.length){ showToast('القائمة فاضية أصلاً'); return; }
-  if(!confirm('تبي تمسح كل قائمة التحضير؟')) return;
+  if(!confirm('تبي تمسح كل قائمة الروشن؟')) return;
   prepListCache = [];
   renderPrepList(); savePrepList();
   showToast('تم مسح القائمة');
@@ -1093,7 +1091,7 @@ function renderStats(){
     const key = t.date.slice(0,7);
     monthlyTotals[key] = (monthlyTotals[key]||0) + (t.total||0);
   });
-  const arMonths = ['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  const arMonths = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   const months = [];
   for(let i=5;i>=0;i--){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
@@ -1121,7 +1119,7 @@ function renderStats(){
         ${months.map(m=>`
           <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
             <div style="width:100%;background:var(--green);border-radius:4px 4px 0 0;height:${Math.max(4,(m.total/maxTotal)*60)}px;" title="${fmt(m.total)}"></div>
-            <div style="font-size:9.5px;color:var(--muted);">${m.label}</div>
+            <div style="font-size:8.5px;color:var(--muted);text-align:center;line-height:1.1;">${m.label}</div>
           </div>
         `).join('')}
       </div>
