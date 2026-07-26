@@ -806,88 +806,114 @@ async function deleteTrip(id){
 }
 
 async function shareTripPDF(id){
-  const trip = tripsCache[id];
-  if(!trip) return;
+  let trip = tripsCache[id];
   const btn = document.getElementById('share-'+id);
-  const originalLabel = btn.textContent;
-  btn.textContent = '⏳ جاري التجهيز...';
-  btn.disabled = true;
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.textContent = '⏳ جاري التجهيز...'; btn.disabled = true; }
 
-  const logoSrc = document.querySelector('.mark img').src;
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:380px;background:#fff;padding:22px 20px;font-family:Cairo,sans-serif;direction:rtl;';
-  wrap.innerHTML = `
-    <div style="text-align:center;margin-bottom:14px;">
-      <img src="${logoSrc}" style="width:56px;height:56px;border-radius:14px;">
-      <div style="font-family:Tajawal,sans-serif;font-weight:900;font-size:18px;color:#241F4E;margin-top:6px;">مشترياتي</div>
-      <div style="font-size:10px;color:#8B84A8;letter-spacing:1px;">Mustryati</div>
-    </div>
-    <div style="border-top:2px dashed #E1DBF0;margin:10px 0;"></div>
-    <div style="font-family:Tajawal,sans-serif;font-weight:700;font-size:15px;color:#241F4E;">${escapeHtml(trip.store)}</div>
-    <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date}</div>
-    ${trip.items.map(i=>`
-      <div style="display:flex;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">×${i.qty}</span>
-        <span style="flex:1;font-weight:600;">${escapeHtml(i.name)}</span>
-        <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty)}</span>
+  try{
+    if(!trip){
+      // محاولة جلب الفاتورة مباشرة لو ما كانت بالذاكرة المؤقتة
+      const doc = await basketRef().collection('trips').doc(id).get();
+      if(doc.exists){ trip = doc.data(); tripsCache[id] = trip; }
+    }
+    if(!trip){
+      showToast('ما قدرنا نلقى بيانات هذي الفاتورة');
+      return;
+    }
+
+    if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+      showToast('مكتبة PDF ما تحمّلت من الإنترنت — حدّث الصفحة وحاول مرة ثانية');
+      return;
+    }
+
+    const logoSrc = document.querySelector('.mark img').src;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;top:0;left:-9999px;width:380px;background:#fff;padding:22px 20px;font-family:Cairo,sans-serif;direction:rtl;z-index:-1;';
+    wrap.innerHTML = `
+      <div style="text-align:center;margin-bottom:14px;">
+        <img src="${logoSrc}" style="width:56px;height:56px;border-radius:14px;">
+        <div style="font-family:Tajawal,sans-serif;font-weight:900;font-size:18px;color:#241F4E;margin-top:6px;">مشترياتي</div>
+        <div style="font-size:10px;color:#8B84A8;letter-spacing:1px;">Mustryati</div>
       </div>
-    `).join('')}
-    <div style="border-top:2px dashed #E1DBF0;margin:12px 0 8px;"></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax)}</span></div>
-    ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount)}</span></div>` : ''}
-    <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total)}</span></div>
-  `;
-  document.body.appendChild(wrap);
+      <div style="border-top:2px dashed #E1DBF0;margin:10px 0;"></div>
+      <div style="font-family:Tajawal,sans-serif;font-weight:700;font-size:15px;color:#241F4E;">${escapeHtml(trip.store)}</div>
+      <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date}</div>
+      ${trip.items.map(i=>`
+        <div style="display:flex;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">×${i.qty}</span>
+          <span style="flex:1;font-weight:600;">${escapeHtml(i.name)}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty)}</span>
+        </div>
+      `).join('')}
+      <div style="border-top:2px dashed #E1DBF0;margin:12px 0 8px;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax)}</span></div>
+      ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total)}</span></div>
+    `;
+    document.body.appendChild(wrap);
 
-  if(typeof html2canvas === 'undefined' || !window.jspdf){
-    document.body.removeChild(wrap);
-    showToast('مكتبة إنشاء PDF ما تحمّلت (تأكد من الإنترنت وحدّث الصفحة)');
-    btn.textContent = originalLabel;
-    btn.disabled = false;
-    return;
-  }
-
-  let pdf, pdfFile, fileName;
-  try{
-    const canvas = await html2canvas(wrap, {scale:2, backgroundColor:'#ffffff', useCORS:true});
-    document.body.removeChild(wrap);
-    const imgData = canvas.toDataURL('image/png');
-    const { jsPDF } = window.jspdf;
-    const pdfWidth = 100;
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf = new jsPDF({unit:'mm', format:[pdfWidth, pdfHeight]});
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    fileName = `فاتورة-${trip.store}-${trip.date}.pdf`.replace(/[\/\\]/g,'-');
-    const pdfBlob = pdf.output('blob');
-    pdfFile = new File([pdfBlob], fileName, {type:'application/pdf'});
-  }catch(e){
-    console.error('PDF generation error:', e);
-    if(document.body.contains(wrap)) document.body.removeChild(wrap);
-    showToast('صار خطأ بإنشاء ملف PDF: ' + (e && e.message ? e.message : 'غير معروف'));
-    btn.textContent = originalLabel;
-    btn.disabled = false;
-    return;
-  }
-
-  try{
-    if(navigator.canShare && navigator.canShare({files:[pdfFile]})){
-      await navigator.share({files:[pdfFile], title:'فاتورة مشترياتي', text:`فاتورة ${trip.store} - ${trip.date}`});
-    } else {
-      pdf.save(fileName);
-      showToast('تم تحميل ملف PDF');
+    let pdf, pdfBlob, fileName;
+    try{
+      const canvas = await html2canvas(wrap, {scale:2, backgroundColor:'#ffffff', useCORS:true, logging:false});
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdfWidth = 100;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf = new jsPDF({unit:'mm', format:[pdfWidth, pdfHeight]});
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      fileName = `فاتورة-${trip.store}-${trip.date}.pdf`.replace(/[\/\\:]/g,'-');
+      pdfBlob = pdf.output('blob');
+    } finally {
+      if(document.body.contains(wrap)) document.body.removeChild(wrap);
     }
-  }catch(e){
-    if(e && (e.name === 'AbortError' || e.name === 'NotAllowedError')){
-      // المستخدم لغى المشاركة أو أغلق النافذة — الملف اتسوّى صح، بس ما تمت المشاركة
-    } else {
-      console.error('Share error:', e);
-      pdf.save(fileName);
-      showToast('تعذّرت المشاركة المباشرة، تم تحميل الملف بدالها');
+
+    if(!pdfBlob){
+      showToast('صار خطأ بإنشاء ملف PDF');
+      return;
     }
+
+    // 1) جرب المشاركة المباشرة (واتساب، إيميل...)
+    let shared = false;
+    try{
+      const pdfFile = new File([pdfBlob], fileName, {type:'application/pdf'});
+      if(navigator.canShare && navigator.canShare({files:[pdfFile]})){
+        await navigator.share({files:[pdfFile], title:'فاتورة مشترياتي', text:`فاتورة ${trip.store} - ${trip.date}`});
+        shared = true;
+      }
+    }catch(e){
+      if(e && e.name === 'AbortError'){
+        shared = true; // المستخدم لغى المشاركة بنفسه، ما نكمل لتحميل تلقائي
+      }
+      // أي خطأ ثاني نكمل على التحميل اليدوي بالأسفل
+    }
+    if(shared) return;
+
+    // 2) تحميل مباشر كملف (fallback مضمون بكل المتصفحات)
+    try{
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(blobUrl), 5000);
+      showToast('تم تحميل ملف PDF 📄');
+    }catch(e2){
+      console.error('Download fallback failed:', e2);
+      // 3) آخر حل: فتحه بتبويب جديد يقدر المستخدم يحفظه أو يشاركه يدوياً منه
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      window.open(blobUrl, '_blank');
+      showToast('تم فتح الملف بتبويب جديد');
+    }
+  }catch(err){
+    console.error('shareTripPDF fatal error:', err);
+    showToast('صار خطأ غير متوقع، جرب تحدّث الصفحة');
+  }finally{
+    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
   }
-  btn.textContent = originalLabel;
-  btn.disabled = false;
 }
 
 function escapeHtml(s){
