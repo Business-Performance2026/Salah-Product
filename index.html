@@ -148,6 +148,12 @@ input:focus{outline:none;border-color:var(--green);}
 .summary-row.total{font-family:'Tajawal';font-weight:900;font-size:18px;color:#fff;border-top:1px dashed #4A7B62;margin-top:6px;padding-top:8px;}
 .summary-row .val{font-family:'JetBrains Mono';font-weight:700;}
 .tax-line{display:flex;align-items:center;gap:8px;margin:8px 0 4px;}
+.summary-toggle-row{
+  display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+  font-size:12px;color:#D9E7DE;padding:2px 0;
+}
+.summary-toggle-row b{font-family:'JetBrains Mono';color:#fff;}
+#summaryDetails{border-top:1px dashed #4A7B62;margin-top:6px;padding-top:2px;}
 .tax-line input{
   width:70px;padding:6px 8px;border-radius:8px;border:none;font-family:'JetBrains Mono';
   text-align:center;font-weight:700;
@@ -397,16 +403,22 @@ input:focus{outline:none;border-color:var(--green);}
 <!-- Sticky summary (cart tab only) -->
 <div class="summary-bar" id="summaryBar">
   <div class="summary-inner">
-    <div class="tax-line">
-      <span>نسبة الضريبة %</span>
-      <input type="number" id="taxPercent" placeholder="0" min="0" step="0.1" oninput="renderSummary()">
+    <div class="summary-toggle-row" onclick="toggleSummaryDetails()">
+      <span>عدد المنتجات: <b id="sumCountCompact">0</b> · تفاصيل الحساب</span>
+      <span id="summaryToggleIcon">▾</span>
     </div>
-    <div class="summary-row"><span>عدد المنتجات</span><span class="val" id="sumCount">0</span></div>
-    <div class="summary-row"><span>المجموع قبل الضريبة</span><span class="val" id="sumSubtotal">0.000</span></div>
-    <div class="summary-row"><span>الضريبة</span><span class="val" id="sumTax">0.000</span></div>
-    <div class="tax-line">
-      <span>الخصم / التخفيض</span>
-      <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
+    <div id="summaryDetails" style="display:none;">
+      <div class="tax-line">
+        <span>نسبة الضريبة %</span>
+        <input type="number" id="taxPercent" placeholder="0" min="0" step="0.1" oninput="renderSummary()">
+      </div>
+      <div class="summary-row"><span>عدد المنتجات</span><span class="val" id="sumCount">0</span></div>
+      <div class="summary-row"><span>المجموع قبل الضريبة</span><span class="val" id="sumSubtotal">0.000</span></div>
+      <div class="summary-row"><span>الضريبة</span><span class="val" id="sumTax">0.000</span></div>
+      <div class="tax-line">
+        <span>الخصم / التخفيض</span>
+        <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
+      </div>
     </div>
     <div class="summary-row total"><span>الإجمالي</span><span class="val" id="sumTotal">0.000</span></div>
     <button class="finish-btn" onclick="finishTrip()">✔ إنهاء التسوق وحفظه</button>
@@ -455,7 +467,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v8'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v9'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -914,11 +926,21 @@ function renderSummary(){
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
   document.getElementById('sumCount').textContent = count;
+  document.getElementById('sumCountCompact').textContent = count;
   document.getElementById('sumSubtotal').textContent = fmt(subtotal);
   document.getElementById('sumTax').textContent = fmt(tax);
   document.getElementById('sumTotal').textContent = fmt(total);
   renderBudgetBar(total);
   adjustBodyPadding();
+}
+
+function toggleSummaryDetails(){
+  const details = document.getElementById('summaryDetails');
+  const icon = document.getElementById('summaryToggleIcon');
+  const open = details.style.display !== 'none';
+  details.style.display = open ? 'none' : 'block';
+  icon.textContent = open ? '▾' : '▴';
+  setTimeout(adjustBodyPadding, 0);
 }
 
 let budgetWarningShown = false;
@@ -1385,3 +1407,21 @@ function closeScanner(){
 </script>
 </body>
 </html>
+
+{
+  "name": "مشترياتي - Mustryati",
+  "short_name": "مشترياتي",
+  "description": "تطبيق سلة التسوق - سجّل مشترياتك وتابع أسعارها",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#F8F6FC",
+  "theme_color": "#4B3F9E",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
