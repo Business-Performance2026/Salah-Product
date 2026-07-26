@@ -449,17 +449,30 @@ input:focus{outline:none;border-color:var(--green);}
 <!-- Auth modal -->
 <div class="modal-bg" id="authModal">
   <div class="modal sync-modal">
-    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">تسجيل الدخول</h2>
-    <p>سجّل حساب باسم مستخدم وكلمة سر عشان بياناتك تتزامن بين كل أجهزتك بأمان.</p>
-    <div class="field">
-      <input type="text" id="authUsername" placeholder="اسم المستخدم" autocomplete="username">
+
+    <!-- Step 1: choose login or signup -->
+    <div id="authChoiceScreen">
+      <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">مرحباً بك 👋</h2>
+      <p>اختر: عندك حساب مسبقاً، أو تبي تسوي حساب جديد؟</p>
+      <button onclick="showAuthForm('login')" style="width:100%;margin-bottom:8px;">🔑 عندي حساب — تسجيل الدخول</button>
+      <button onclick="showAuthForm('signup')" style="width:100%;background:var(--paper-2);color:var(--ink);">🆕 ما عندي حساب — مستخدم جديد</button>
     </div>
-    <div class="field">
-      <input type="password" id="authPassword" placeholder="كلمة السر (6 أحرف على الأقل)" autocomplete="current-password">
+
+    <!-- Step 2: username/password form -->
+    <div id="authFormScreen" style="display:none;">
+      <button onclick="backToAuthChoice()" style="background:none;border:none;color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer;margin-bottom:10px;padding:0;">→ رجوع</button>
+      <h2 id="authFormTitle" style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;"></h2>
+      <p id="authFormSubtitle"></p>
+      <div class="field">
+        <input type="text" id="authUsername" placeholder="اسم المستخدم" autocomplete="username">
+      </div>
+      <div class="field">
+        <input type="password" id="authPassword" placeholder="كلمة السر (6 أحرف على الأقل)" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitAuth()">
+      </div>
+      <div id="authMsg" style="display:none;font-size:12.5px;font-weight:600;color:var(--red);margin-bottom:10px;text-align:right;"></div>
+      <button id="authSubmitBtn" onclick="submitAuth()" style="width:100%;"></button>
     </div>
-    <div id="authMsg" style="display:none;font-size:12.5px;font-weight:600;color:var(--red);margin-bottom:10px;text-align:right;"></div>
-    <button onclick="logIn()" style="width:100%;margin-bottom:8px;">🔑 تسجيل الدخول</button>
-    <button onclick="signUp()" style="width:100%;background:var(--paper-2);color:var(--ink);">🆕 إنشاء حساب جديد</button>
+
   </div>
 </div>
 
@@ -479,7 +492,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v12'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v13'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -546,6 +559,37 @@ function clearAuthMsg(){
   document.getElementById('authMsg').style.display = 'none';
 }
 
+let authMode = 'login';
+
+function showAuthForm(mode){
+  authMode = mode;
+  clearAuthMsg();
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authChoiceScreen').style.display = 'none';
+  document.getElementById('authFormScreen').style.display = 'block';
+  if(mode === 'signup'){
+    document.getElementById('authFormTitle').textContent = '🆕 تسجيل مستخدم جديد';
+    document.getElementById('authFormSubtitle').textContent = 'اختر اسم مستخدم وكلمة سر لحسابك الجديد.';
+    document.getElementById('authSubmitBtn').textContent = '✅ إنشاء الحساب';
+  } else {
+    document.getElementById('authFormTitle').textContent = '🔑 تسجيل الدخول';
+    document.getElementById('authFormSubtitle').textContent = 'اكتب اسم المستخدم وكلمة السر بتاعت حسابك.';
+    document.getElementById('authSubmitBtn').textContent = '🔑 دخول';
+  }
+  document.getElementById('authUsername').focus();
+}
+
+function backToAuthChoice(){
+  clearAuthMsg();
+  document.getElementById('authFormScreen').style.display = 'none';
+  document.getElementById('authChoiceScreen').style.display = 'block';
+}
+
+function submitAuth(){
+  if(authMode === 'signup') signUp(); else logIn();
+}
+
 async function signUp(){
   clearAuthMsg();
   const rawUsername = document.getElementById('authUsername').value;
@@ -602,6 +646,9 @@ auth.onAuthStateChanged(async (user)=>{
     loadHistory();
     loadProductsCache();
   } else {
+    document.getElementById('authFormScreen').style.display = 'none';
+    document.getElementById('authChoiceScreen').style.display = 'block';
+    clearAuthMsg();
     document.getElementById('authModal').classList.add('open');
   }
 });
