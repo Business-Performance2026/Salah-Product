@@ -250,6 +250,7 @@ input:focus{outline:none;border-color:var(--green);}
 <!-- Firebase SDK (compat build, no bundler needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <!-- PDF export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -268,8 +269,9 @@ input:focus{outline:none;border-color:var(--green);}
     </div>
   </header>
 
-  <div class="sync-badge" onclick="openSyncModal()" style="margin-bottom:14px;">
-    🔗 كود المزامنة: <b id="syncCodeLabel">—</b> — اضغط للتغيير أو المشاركة
+  <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
+    👤 مسجّل باسم: <b id="userLabel">—</b>
+    <button onclick="logOut()" style="margin-right:auto;background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">تسجيل خروج</button>
   </div>
 
   <!-- CART TAB -->
@@ -372,17 +374,20 @@ input:focus{outline:none;border-color:var(--green);}
   </div>
 </div>
 
-<!-- Sync code modal -->
-<div class="modal-bg" id="syncModal">
+<!-- Auth modal -->
+<div class="modal-bg" id="authModal">
   <div class="modal sync-modal">
-    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">كود المزامنة</h2>
-    <p>هذا الكود يربط بياناتك بين كل أجهزتك. اختر كود مميز (مثلاً اسم عائلتك + رقم).</p>
+    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">تسجيل الدخول</h2>
+    <p>سجّل حساب باسم مستخدم وكلمة سر عشان بياناتك تتزامن بين كل أجهزتك بأمان.</p>
     <div class="field">
-      <input type="text" id="syncCodeInput" placeholder="مثال: alrashid-2026">
+      <input type="text" id="authUsername" placeholder="اسم المستخدم" autocomplete="username">
     </div>
-    <div id="syncCodeMsg" style="display:none;font-size:12.5px;font-weight:600;color:var(--red);margin-bottom:10px;text-align:right;"></div>
-    <button onclick="saveSyncCode(true)" style="width:100%;margin-bottom:8px;">🆕 هذا كود جديد (أول مرة)</button>
-    <button onclick="saveSyncCode(false)" style="width:100%;background:var(--paper-2);color:var(--ink);">🔗 عندي هذا الكود مسبقاً، اربط الجهاز</button>
+    <div class="field">
+      <input type="password" id="authPassword" placeholder="كلمة السر (6 أحرف على الأقل)" autocomplete="current-password">
+    </div>
+    <div id="authMsg" style="display:none;font-size:12.5px;font-weight:600;color:var(--red);margin-bottom:10px;text-align:right;"></div>
+    <button onclick="logIn()" style="width:100%;margin-bottom:8px;">🔑 تسجيل الدخول</button>
+    <button onclick="signUp()" style="width:100%;background:var(--paper-2);color:var(--ink);">🆕 إنشاء حساب جديد</button>
   </div>
 </div>
 
@@ -400,13 +405,15 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
+const FAKE_EMAIL_DOMAIN = 'mustryati-users.app';
 /* ===================================================== */
 
 let state = { store:'', date:'', taxPercent:'', discount:'', items:[] };
 let refPriceInfo = null;
 let scanStream = null;
 let detectorTimer = null;
-let syncCode = localStorage.getItem('syncCode') || '';
+let currentUser = null;
 let productsCache = [];
 let editingItemId = null;
 let editingTripId = null;
@@ -426,44 +433,81 @@ let tripsCache = {};
   navigator.serviceWorker.register(swUrl).catch(()=>{});
 })();
 
-function basketRef(){ return db.collection('baskets').doc(syncCode); }
+function basketRef(){ return db.collection('baskets').doc(currentUser.uid); }
 
-function openSyncModal(){
-  document.getElementById('syncCodeInput').value = syncCode;
-  document.getElementById('syncCodeMsg').style.display = 'none';
-  document.getElementById('syncModal').classList.add('open');
+function sanitizeUsername(u){
+  return u.trim().toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9_.-]/g,'');
+}
+function toFakeEmail(username){ return sanitizeUsername(username) + '@' + FAKE_EMAIL_DOMAIN; }
+
+function showAuthMsg(msg){
+  const box = document.getElementById('authMsg');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function clearAuthMsg(){
+  document.getElementById('authMsg').style.display = 'none';
 }
 
-async function saveSyncCode(isNewCode){
-  const v = document.getElementById('syncCodeInput').value.trim();
-  const msgBox = document.getElementById('syncCodeMsg');
-  msgBox.style.display = 'none';
-  if(!v){ showToast('اكتب كود'); return; }
-  if(v.length < 4){ msgBox.textContent = 'الكود قصير جداً، اختر كود أطول وأصعب تخمينه'; msgBox.style.display='block'; return; }
-
-  const tempRef = db.collection('baskets').doc(v);
-
-  if(isNewCode){
-    try{
-      const doc = await tempRef.get();
-      if(doc.exists && doc.data().claimed){
-        msgBox.textContent = 'لا يمكن التسجيل بهذا الكود لأنه غير متوفر — جرب كود ثاني';
-        msgBox.style.display = 'block';
-        return;
-      }
-      await tempRef.set({claimed:true, claimedAt:new Date().toISOString()}, {merge:true});
-    }catch(e){
-      showToast('صار خطأ، حاول مرة ثانية');
-      return;
+async function signUp(){
+  clearAuthMsg();
+  const rawUsername = document.getElementById('authUsername').value;
+  const password = document.getElementById('authPassword').value;
+  const username = sanitizeUsername(rawUsername);
+  if(!username){ showAuthMsg('اكتب اسم مستخدم صحيح (حروف إنجليزية أو أرقام)'); return; }
+  if(!password || password.length < 6){ showAuthMsg('كلمة السر لازم تكون 6 أحرف على الأقل'); return; }
+  try{
+    const cred = await auth.createUserWithEmailAndPassword(toFakeEmail(username), password);
+    await cred.user.updateProfile({displayName: username});
+    // onAuthStateChanged بيكمل الباقي تلقائياً
+  }catch(e){
+    if(e.code === 'auth/email-already-in-use'){
+      showAuthMsg('لا يمكن التسجيل بهذا الاسم لأنه غير متوفر — جرب اسم مستخدم ثاني');
+    } else if(e.code === 'auth/weak-password'){
+      showAuthMsg('كلمة السر ضعيفة، اختر كلمة سر أقوى');
+    } else {
+      showAuthMsg('صار خطأ: ' + (e.message || 'غير معروف'));
     }
   }
-
-  syncCode = v;
-  localStorage.setItem('syncCode', syncCode);
-  document.getElementById('syncCodeLabel').textContent = syncCode;
-  document.getElementById('syncModal').classList.remove('open');
-  loadDraft(); loadHistory(); loadProductsCache();
 }
+
+async function logIn(){
+  clearAuthMsg();
+  const rawUsername = document.getElementById('authUsername').value;
+  const password = document.getElementById('authPassword').value;
+  const username = sanitizeUsername(rawUsername);
+  if(!username || !password){ showAuthMsg('اكتب اسم المستخدم وكلمة السر'); return; }
+  try{
+    await auth.signInWithEmailAndPassword(toFakeEmail(username), password);
+    // onAuthStateChanged بيكمل الباقي تلقائياً
+  }catch(e){
+    if(e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
+      showAuthMsg('اسم المستخدم أو كلمة السر غلط');
+    } else {
+      showAuthMsg('صار خطأ: ' + (e.message || 'غير معروف'));
+    }
+  }
+}
+
+function logOut(){
+  if(!confirm('تسجيل خروج من الحساب؟')) return;
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(async (user)=>{
+  currentUser = user;
+  if(user){
+    document.getElementById('authModal').classList.remove('open');
+    document.getElementById('userLabel').textContent = user.displayName || (user.email||'').split('@')[0];
+    document.getElementById('authUsername').value = '';
+    document.getElementById('authPassword').value = '';
+    await loadDraft();
+    loadHistory();
+    loadProductsCache();
+  } else {
+    document.getElementById('authModal').classList.add('open');
+  }
+});
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function fmt(n){ return (Math.round(n*1000)/1000).toFixed(3); }
@@ -474,12 +518,12 @@ function showToast(msg){
 }
 
 async function saveDraft(){
-  if(!syncCode) return;
+  if(!currentUser) return;
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
 }
 
 async function loadDraft(){
-  if(!syncCode) return;
+  if(!currentUser) return;
   state = { store:'', date: todayISO(), taxPercent:'', discount:'', items:[] };
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
   document.getElementById('storeName').value = '';
@@ -491,14 +535,6 @@ async function loadDraft(){
 
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('tripDate').value = todayISO();
-  if(syncCode){
-    document.getElementById('syncCodeLabel').textContent = syncCode;
-    loadDraft();
-    loadHistory();
-    loadProductsCache();
-  } else {
-    openSyncModal();
-  }
   document.getElementById('storeName').addEventListener('input', e=>{ state.store=e.target.value; saveDraft(); });
   document.getElementById('tripDate').addEventListener('input', e=>{ state.date=e.target.value; saveDraft(); });
   document.getElementById('taxPercent').addEventListener('input', e=>{ state.taxPercent=e.target.value; saveDraft(); });
@@ -512,7 +548,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 async function loadProductsCache(){
-  if(!syncCode) return;
+  if(!currentUser) return;
   try{
     const snap = await basketRef().collection('products').get();
     productsCache = snap.docs.map(d=>d.data());
@@ -521,7 +557,7 @@ async function loadProductsCache(){
 }
 
 async function backfillProductsFromHistory(){
-  if(!syncCode) return;
+  if(!currentUser) return;
   try{
     const snap = await basketRef().collection('trips').orderBy('date','desc').limit(50).get();
     const known = new Set(productsCache.map(p=>p.name.trim().toLowerCase()));
@@ -630,7 +666,7 @@ async function checkBarcodePrice(){
   const alertBox = document.getElementById('priceAlert');
   refPriceInfo = null;
   if(!code){ alertBox.style.display='none'; return; }
-  if(!syncCode) return;
+  if(!currentUser) return;
   try{
     const doc = await basketRef().collection('products').doc(code).get();
     if(doc.exists){
@@ -824,7 +860,7 @@ function switchTab(tab){
 
 async function loadHistory(){
   const box = document.getElementById('historyList');
-  if(!syncCode) return;
+  if(!currentUser) return;
   let idx = [];
   try{
     const snap = await basketRef().collection('trips').orderBy('date','desc').limit(50).get();
