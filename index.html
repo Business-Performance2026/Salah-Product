@@ -230,6 +230,13 @@ input:focus{outline:none;border-color:var(--green);}
 }
 .img-upload-row .label-text{font-size:12.5px;color:var(--muted);font-weight:600;}
 .receipt-line .thumb{width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;}
+
+.unit-toggle{display:flex;gap:8px;margin:-4px 0 12px;}
+.unit-btn{
+  flex:1;padding:8px 6px;border-radius:9px;border:1.5px solid var(--line);background:var(--paper-2);
+  font-family:'Cairo';font-weight:700;font-size:12.5px;color:var(--muted);cursor:pointer;
+}
+.unit-btn.active{background:var(--green);border-color:var(--green);color:#fff;}
 .editing-banner{
   background:#FFF6E0;color:#8A6100;font-size:12px;font-weight:600;padding:7px 10px;
   border-radius:8px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;
@@ -302,13 +309,17 @@ input:focus{outline:none;border-color:var(--green);}
           <input type="text" id="pName" placeholder="مثال: حليب" autocomplete="off">
           <div class="suggest-list" id="suggestList"></div>
         </div>
-        <div class="field" style="max-width:90px;">
-          <label>الكمية</label>
-          <input type="number" id="pQty" value="1" min="1">
+        <div class="field" style="max-width:100px;">
+          <label id="qtyLabel">الكمية</label>
+          <input type="number" id="pQty" value="1" min="1" step="1">
         </div>
       </div>
+      <div class="unit-toggle">
+        <button type="button" class="unit-btn active" id="unitPieceBtn" onclick="setUnitMode('piece')">🔢 بالقطعة</button>
+        <button type="button" class="unit-btn" id="unitKgBtn" onclick="setUnitMode('kg')">⚖️ بالوزن (كجم)</button>
+      </div>
       <div class="field">
-        <label>السعر (للقطعة)</label>
+        <label id="priceLabel">السعر (للقطعة)</label>
         <input type="number" id="pPrice" placeholder="0.000" step="0.001" min="0">
       </div>
       <div class="img-upload-row">
@@ -418,6 +429,7 @@ let productsCache = [];
 let editingItemId = null;
 let editingTripId = null;
 let currentImageDataUrl = '';
+let currentUnit = 'piece';
 let tripsCache = {};
 
 /* ---- PWA: home screen icon (silent, no install prompts) ---- */
@@ -568,7 +580,7 @@ async function backfillProductsFromHistory(){
         const key = (item.name||'').trim().toLowerCase();
         if(key && !known.has(key)){
           known.add(key);
-          const info = {name:item.name, price:item.price, barcode:item.barcode||'', image:item.image||'', date:trip.date, store:trip.store||''};
+          const info = {name:item.name, price:item.price, unit:item.unit||'piece', barcode:item.barcode||'', image:item.image||'', date:trip.date, store:trip.store||''};
           productsCache.push(info);
           toAdd.push(info);
         }
@@ -583,6 +595,35 @@ async function backfillProductsFromHistory(){
 
 function slugify(name){
   return name.trim().toLowerCase().replace(/\//g,'_').replace(/\s+/g,'-').slice(0,120) || uid();
+}
+
+function setUnitMode(mode){
+  currentUnit = mode;
+  const qtyInput = document.getElementById('pQty');
+  const qtyLabel = document.getElementById('qtyLabel');
+  const priceLabel = document.getElementById('priceLabel');
+  document.getElementById('unitPieceBtn').classList.toggle('active', mode==='piece');
+  document.getElementById('unitKgBtn').classList.toggle('active', mode==='kg');
+  if(mode==='kg'){
+    qtyLabel.textContent = 'الوزن (كجم)';
+    qtyInput.min = '0.001'; qtyInput.step = '0.001';
+    if(parseFloat(qtyInput.value)===1 || !qtyInput.value) qtyInput.value = '';
+    qtyInput.placeholder = 'مثال: 0.750';
+    priceLabel.textContent = 'السعر لكل كيلو';
+  } else {
+    qtyLabel.textContent = 'الكمية';
+    qtyInput.min = '1'; qtyInput.step = '1';
+    if(!qtyInput.value) qtyInput.value = '1';
+    qtyInput.placeholder = '';
+    priceLabel.textContent = 'السعر (للقطعة)';
+  }
+}
+
+function formatQty(item){
+  if(item.unit === 'kg'){
+    return (Math.round(item.qty*1000)/1000).toFixed(3) + ' كجم';
+  }
+  return '×' + item.qty;
 }
 
 function handleImageSelect(e){
@@ -653,6 +694,7 @@ function selectSuggestion(idx){
   const p = results[idx];
   if(!p) return;
   document.getElementById('pName').value = p.name;
+  setUnitMode(p.unit || 'piece');
   document.getElementById('pPrice').value = p.price;
   if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
   if(p.image){ currentImageDataUrl = p.image; showImagePreview(p.image); } else { removeProductImage(); }
@@ -673,6 +715,7 @@ async function checkBarcodePrice(){
       const info = doc.data();
       refPriceInfo = info;
       document.getElementById('pName').value = document.getElementById('pName').value || info.name;
+      setUnitMode(info.unit || 'piece');
       document.getElementById('pPrice').value = info.price;
       if(info.image){ currentImageDataUrl = info.image; showImagePreview(info.image); }
       compareAndShow(info.price, info);
@@ -708,21 +751,24 @@ function compareAndShow(newPrice, info){
 async function addItem(){
   const name = document.getElementById('pName').value.trim();
   const price = parseFloat(document.getElementById('pPrice').value);
-  const qty = Math.max(1, parseInt(document.getElementById('pQty').value)||1);
+  const qtyRaw = parseFloat(document.getElementById('pQty').value);
+  const unit = currentUnit;
+  const qty = unit==='kg' ? (qtyRaw>0 ? qtyRaw : NaN) : Math.max(1, parseInt(qtyRaw)||1);
   const barcode = document.getElementById('pBarcode').value.trim();
 
   if(!name){ showToast('اكتب اسم المنتج'); return; }
   if(isNaN(price) || price<0){ showToast('اكتب سعر صحيح'); return; }
+  if(unit==='kg' && (isNaN(qty) || qty<=0)){ showToast('اكتب الوزن بالكيلو (مثال: 0.750)'); return; }
 
   if(editingItemId){
     const idx = state.items.findIndex(i=>i.id===editingItemId);
-    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, barcode, image: currentImageDataUrl };
+    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, unit, barcode, image: currentImageDataUrl };
   } else {
-    state.items.push({ id: uid(), name, price, qty, barcode, image: currentImageDataUrl });
+    state.items.push({ id: uid(), name, price, qty, unit, barcode, image: currentImageDataUrl });
   }
 
   const productId = barcode || slugify(name);
-  const productInfo = {name, price, barcode: barcode||'', image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
+  const productInfo = {name, price, unit, barcode: barcode||'', image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
   try{
     await basketRef().collection('products').doc(productId).set(productInfo);
     const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
@@ -739,6 +785,7 @@ function editItem(id){
   editingItemId = id;
   document.getElementById('pName').value = item.name;
   document.getElementById('pPrice').value = item.price;
+  setUnitMode(item.unit || 'piece');
   document.getElementById('pQty').value = item.qty;
   document.getElementById('pBarcode').value = item.barcode || '';
   if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); } else { removeProductImage(); }
@@ -752,6 +799,7 @@ function cancelEdit(){
   refPriceInfo = null;
   document.getElementById('pName').value='';
   document.getElementById('pPrice').value='';
+  setUnitMode('piece');
   document.getElementById('pQty').value='1';
   document.getElementById('pBarcode').value='';
   document.getElementById('priceAlert').style.display='none';
@@ -785,7 +833,7 @@ function renderCart(){
   list.innerHTML = state.items.map(i=>`
     <div class="receipt-line">
       ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
-      <span class="qty">×${i.qty}</span>
+      <span class="qty">${formatQty(i)}</span>
       <span class="name">${escapeHtml(i.name)}</span>
       <span class="dots"></span>
       <span class="price">${fmt(i.price*i.qty)}</span>
@@ -796,7 +844,7 @@ function renderCart(){
 }
 
 function renderSummary(){
-  const count = state.items.reduce((s,i)=>s+i.qty,0);
+  const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
   const tax = subtotal*(taxPct/100);
@@ -820,7 +868,7 @@ window.addEventListener('load', adjustBodyPadding);
 
 async function finishTrip(){
   if(!state.items.length){ showToast('السلة فاضية'); return; }
-  const count = state.items.reduce((s,i)=>s+i.qty,0);
+  const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
   const tax = subtotal*(taxPct/100);
@@ -899,7 +947,7 @@ async function toggleTrip(id, cardEl){
       box.innerHTML = trip.items.map(i=>`
         <div class="receipt-line">
           ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
-          <span class="qty">×${i.qty}</span>
+          <span class="qty">${formatQty(i)}</span>
           <span class="name">${escapeHtml(i.name)}</span>
           <span class="dots"></span>
           <span class="price">${fmt(i.price*i.qty)}</span>
@@ -974,7 +1022,7 @@ async function shareTripPDF(id){
       ${trip.items.map(i=>`
         <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
           ${i.image ? `<img src="${i.image}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
-          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">×${i.qty}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B84A8;">${formatQty(i)}</span>
           <span style="flex:1;font-weight:600;">${escapeHtml(i.name)}</span>
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700;">${fmt(i.price*i.qty)}</span>
         </div>
