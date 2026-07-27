@@ -512,7 +512,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v15'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v16'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1181,7 +1181,7 @@ function renderSummary(){
   document.getElementById('sumSubtotal').textContent = fmt(subtotal);
   document.getElementById('sumTax').textContent = fmt(tax);
   document.getElementById('sumTotal').textContent = fmt(total);
-  document.getElementById('sumCurrencySymbol').textContent = currentCurrency.symbol;
+  document.getElementById('sumCurrencySymbol').textContent = currentCurrency.symbol + ' ' + currentCurrency.code;
   renderBudgetBar(total);
   adjustBodyPadding();
 }
@@ -1445,7 +1445,7 @@ async function loadHistory(){
           <div class="trip-store">${escapeHtml(t.store)}</div>
           <div class="trip-date">${t.date} · ${t.itemCount} منتج</div>
         </div>
-        <div class="trip-total">${fmt(t.total, tc)} <span style="font-size:11px;color:var(--muted);">${tc.symbol}</span></div>
+        <div class="trip-total">${fmt(t.total, tc)} <span style="font-size:11px;color:var(--muted);">${tc.symbol} ${tc.code}</span></div>
       </div>
       <div class="trip-items" id="items-${t.id}"></div>
       <div class="trip-actions" onclick="event.stopPropagation()">
@@ -1542,7 +1542,7 @@ async function shareTripPDF(id){
       </div>
       <div style="border-top:2px dashed #E1DBF0;margin:10px 0;"></div>
       <div style="font-family:Tajawal,sans-serif;font-weight:700;font-size:15px;color:#241F4E;">${escapeHtml(trip.store)}</div>
-      <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date} · ${tc.name} (${tc.symbol})</div>
+      <div style="font-size:11px;color:#8B84A8;margin-bottom:12px;">${trip.date} · ${tc.name} (${tc.symbol} ${tc.code})</div>
       ${trip.items.map(i=>`
         <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dotted #E1DBF0;font-size:13px;">
           ${i.image ? `<img src="${i.image}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
@@ -1555,7 +1555,7 @@ async function shareTripPDF(id){
       <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>المجموع قبل الضريبة</span><span>${fmt(trip.subtotal, tc)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:#8B84A8;padding:2px 0;"><span>الضريبة (${trip.taxPercent||0}%)</span><span>${fmt(trip.tax, tc)}</span></div>
       ${trip.discount ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#C1443C;padding:2px 0;"><span>الخصم</span><span>-${fmt(trip.discount, tc)}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total, tc)} ${tc.symbol}</span></div>
+      <div style="display:flex;justify-content:space-between;font-family:Tajawal,sans-serif;font-weight:900;font-size:17px;color:#241F4E;padding-top:8px;border-top:1px solid #E1DBF0;margin-top:6px;"><span>الإجمالي</span><span>${fmt(trip.total, tc)} ${tc.symbol} <span style="font-size:11px;color:#8B84A8;">${tc.code}</span></span></div>
     `;
     document.body.appendChild(wrap);
 
