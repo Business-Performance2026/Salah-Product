@@ -640,7 +640,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v35'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v36'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1775,23 +1775,76 @@ async function loadPrepList(){
   renderPrepGallery();
 }
 
-function renderPrepGallery(){
-  const box = document.getElementById('prepGallery');
-  if(!box) return;
-  const q = (document.getElementById('prepGallerySearch').value || '').trim().toLowerCase();
-  const withImages = productsCache.filter(p=>p.image && (!q || p.name.toLowerCase().includes(q)));
-  // شيل التكرار (لو نفس الاسم موجود بأكثر من مصدر)
+let selectedGalleryCategory = null;
+
+function getUniqueProductsWithImages(){
+  const withImages = productsCache.filter(p=>p.image);
   const seen = new Set();
   const unique = [];
   withImages.forEach(p=>{
     const key = p.name.trim().toLowerCase();
     if(!seen.has(key)){ seen.add(key); unique.push(p); }
   });
+  return unique;
+}
+
+function renderPrepGallery(){
+  const box = document.getElementById('prepGallery');
+  if(!box) return;
+  const q = (document.getElementById('prepGallerySearch').value || '').trim().toLowerCase();
+  const unique = getUniqueProductsWithImages();
+
   if(!unique.length){
     box.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:14px 0;">${t('noSavedImages')}</div>`;
     return;
   }
-  box.innerHTML = unique.slice(0,60).map(p=>`
+
+  // بحث نصي: يطلع نتائج مباشرة من كل الفئات، يتجاوز البطاقات
+  if(q){
+    const results = unique.filter(p=>p.name.toLowerCase().includes(q));
+    box.style.gridTemplateColumns = 'repeat(3,1fr)';
+    if(!results.length){
+      box.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:14px 0;">${t('noResults')}</div>`;
+      return;
+    }
+    box.innerHTML = results.slice(0,60).map(p=>`
+      <div class="gallery-card" onclick="quickAddToPrepFromGallery('${p.name.replace(/'/g,"\\'")}')">
+        <img src="${p.image}">
+        <div class="gname">${escapeHtml(trName(p.name))}</div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  // ما فيه بحث: لو ما اخترنا فئة، نعرض بطاقات الفئات
+  if(!selectedGalleryCategory){
+    box.style.gridTemplateColumns = 'repeat(2,1fr)';
+    const counts = {};
+    unique.forEach(p=>{
+      const cat = p.category || guessCategory(p.name) || 'uncategorized';
+      counts[cat] = (counts[cat]||0)+1;
+    });
+    const catsWithItems = CATEGORIES.filter(c=>counts[c.id] > 0);
+    box.innerHTML = catsWithItems.map(c=>`
+      <div class="gallery-card" style="aspect-ratio:auto;padding:12px 6px;cursor:pointer;" onclick="selectedGalleryCategory='${c.id}'; renderPrepGallery();">
+        <div style="font-size:26px;margin-bottom:4px;">${(currentLang==='en'?c.en:c.ar).split(' ')[0]}</div>
+        <div class="gname">${(currentLang==='en'?c.en:c.ar).replace(/^\S+\s/,'')}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${counts[c.id]}</div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  // فتحنا فئة معينة: نعرض منتجاتها بس
+  box.style.gridTemplateColumns = 'repeat(3,1fr)';
+  const catInfo = CATEGORIES.find(c=>c.id===selectedGalleryCategory);
+  const catProducts = unique.filter(p=>(p.category || guessCategory(p.name) || 'uncategorized') === selectedGalleryCategory);
+  const backCard = `
+    <div class="gallery-card" style="aspect-ratio:auto;padding:14px 4px;cursor:pointer;background:var(--paper-2);" onclick="selectedGalleryCategory=null; renderPrepGallery();">
+      <div style="font-size:20px;">${currentLang==='en' ? '← Back' : '→ رجوع'}</div>
+      <div class="gname" style="margin-top:4px;">${catInfo ? (currentLang==='en'?catInfo.en:catInfo.ar) : ''}</div>
+    </div>`;
+  box.innerHTML = backCard + catProducts.map(p=>`
     <div class="gallery-card" onclick="quickAddToPrepFromGallery('${p.name.replace(/'/g,"\\'")}')">
       <img src="${p.image}">
       <div class="gname">${escapeHtml(trName(p.name))}</div>
@@ -1806,7 +1859,7 @@ function quickAddToPrepFromGallery(name){
   }
   const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase());
   const category = resolveCategoryForProduct(name);
-  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', category, checked:false});
+  prepListCache.push({id: uid(), name, qty: 1, price: known && known.price!=null ? known.price : '', image: known ? known.image||'' : '', category, checked:false});
   renderPrepList(); savePrepList();
   showToast(t('addedToPrep'));
 }
@@ -1840,7 +1893,8 @@ function renderPrepList(){
         ${p.image ? `<img class="thumb" src="${p.image}">` : ''}
         <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(trName(p.name))}</span>
         <span class="dots"></span>
-        <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;">
+        <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:40px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;" title="${t('qtyLabel')}">
+        <input type="number" value="${p.price!=null && p.price!=='' ? p.price : ''}" placeholder="${t('priceLabelPiece')}" min="0" step="0.001" onchange="updatePrepField('${p.id}','price',this.value)" style="width:60px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;background:var(--paper-2);border-radius:8px;" title="${t('priceLabelPiece')}">
         <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
         <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
         <select onchange="setPrepItemCategory('${p.id}', this.value)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);">
@@ -1865,7 +1919,7 @@ function addPrepItem(){
   if(!name) return;
   const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.toLowerCase());
   const category = resolveCategoryForProduct(name);
-  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', category, checked:false});
+  prepListCache.push({id: uid(), name, qty: 1, price: known && known.price!=null ? known.price : '', image: known ? known.image||'' : '', category, checked:false});
   input.value='';
   renderPrepList(); savePrepList();
 }
@@ -1875,9 +1929,11 @@ async function confirmPurchase(){
   if(!boughtItems.length){ showToast(t('selectAtLeastOne')); return; }
 
   boughtItems.forEach(p=>{
+    const enteredPrice = parseFloat(p.price);
     const known = productsCache.find(kp=>kp.name.trim().toLowerCase()===p.name.trim().toLowerCase() && kp.price!=null);
+    const price = (!isNaN(enteredPrice) && enteredPrice>0) ? enteredPrice : (known ? known.price : 0);
     state.items.push({
-      id: uid(), name: p.name, price: known ? known.price : 0, qty: p.qty||1,
+      id: uid(), name: p.name, price, qty: p.qty||1,
       unit:'piece', barcode: known ? known.barcode||'' : '', taxable:true, image: p.image||''
     });
   });
@@ -1888,13 +1944,25 @@ async function confirmPurchase(){
   await saveDraft();
   renderCart(); renderSummary(); renderPrepList();
   switchTab('cart');
-  showToast(`✔ ${t('addedCount')} ${boughtItems.length} — ${t('reviewPricesHint')}`);
+  showToast(`✔ ${t('addedCount')} ${boughtItems.length}`);
 }
 
 function updatePrepQty(id, value){
   const item = prepListCache.find(p=>p.id===id);
   const qty = parseFloat(value);
   if(item) item.qty = (qty>0) ? qty : 1;
+  savePrepList();
+}
+
+function updatePrepField(id, field, value){
+  const item = prepListCache.find(p=>p.id===id);
+  if(!item) return;
+  if(field === 'price'){
+    const val = parseFloat(value);
+    item.price = (!isNaN(val) && val>=0) ? val : '';
+  } else {
+    item[field] = value;
+  }
   savePrepList();
 }
 
