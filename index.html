@@ -465,6 +465,14 @@ input:focus{outline:none;border-color:var(--green);}
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <h2 style="margin:0;">🗂️ إدارة المنتجات المشتركة</h2>
+        <input type="text" id="productMgmtSearch" placeholder="بحث باسم منتج" oninput="renderProductMgmtList()" style="max-width:130px;padding:6px 10px;font-size:12px;">
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:-4px 0 12px;">عدّل أي منتج (الاسم أو الصورة) أو احذفه لو مكرر أو غلط.</p>
+      <div id="productMgmtList">جاري التحميل...</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <h2 style="margin:0;">كل المستخدمين</h2>
         <input type="text" id="adminSearch" placeholder="بحث باسم المستخدم" oninput="renderAdminUsers()" style="max-width:150px;padding:6px 10px;font-size:12px;">
       </div>
@@ -563,7 +571,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v21'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v22'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1694,6 +1702,7 @@ async function loadAdminPanel(){
   document.getElementById('adminStats').textContent = 'جاري التحميل...';
   document.getElementById('adminUsersList').textContent = 'جاري التحميل...';
   renderBulkImageRows();
+  loadProductMgmtList();
   try{
     const usersSnap = await db.collection('baskets').get();
     adminUsersCache = usersSnap.docs.map(d=>({uid:d.id, ...d.data()}));
@@ -1721,6 +1730,107 @@ async function loadAdminPanel(){
     console.error(e);
     document.getElementById('adminStats').textContent = 'صار خطأ بجلب البيانات — تأكد من قواعد الأمان';
     document.getElementById('adminUsersList').textContent = '';
+  }
+}
+
+/* ---- إدارة المنتجات المشتركة (تعديل/حذف) ---- */
+let productMgmtCache = [];
+let editingProductMgmtId = null;
+
+async function loadProductMgmtList(){
+  document.getElementById('productMgmtList').textContent = 'جاري التحميل...';
+  try{
+    const snap = await db.collection('global_products').get();
+    productMgmtCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderProductMgmtList();
+  }catch(e){
+    console.error(e);
+    document.getElementById('productMgmtList').textContent = 'صار خطأ بجلب المنتجات';
+  }
+}
+
+function renderProductMgmtList(){
+  const q = (document.getElementById('productMgmtSearch').value || '').trim().toLowerCase();
+  const list = productMgmtCache.filter(p=> !q || (p.name||'').toLowerCase().includes(q));
+  const box = document.getElementById('productMgmtList');
+  if(!list.length){ box.innerHTML = '<div class="receipt-empty">ما فيه نتائج</div>'; return; }
+  box.innerHTML = list.slice(0,100).map(p=>{
+    if(editingProductMgmtId === p.id){
+      return `
+        <div class="bulk-row">
+          <div class="bulk-thumb" onclick="document.getElementById('mgmtFile-${p.id}').click()">
+            ${p.image ? `<img id="mgmtPreview-${p.id}" src="${p.image}">` : `<span id="mgmtPreview-${p.id}">📷</span>`}
+          </div>
+          <input type="file" id="mgmtFile-${p.id}" accept="image/*" style="display:none" onchange="handleMgmtImagePick('${p.id}', event)">
+          <div class="bulk-fields">
+            <input type="text" id="mgmtName-${p.id}" value="${escapeHtml(p.name)}">
+          </div>
+          <button class="edit-btn" onclick="saveEditProduct('${p.id}')">💾</button>
+          <button class="bulk-del" onclick="cancelEditProduct()">✕</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="bulk-row">
+        <div class="bulk-thumb">${p.image ? `<img src="${p.image}">` : '📦'}</div>
+        <div class="bulk-fields">
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(p.name)}</div>
+          <div style="font-size:11px;color:var(--muted);">${p.barcode ? 'باركود: '+p.barcode : 'بدون باركود'}</div>
+        </div>
+        <button class="edit-btn" onclick="startEditProduct('${p.id}')">✏️</button>
+        <button class="bulk-del" onclick="deleteGlobalProduct('${p.id}')">🗑</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function startEditProduct(id){
+  editingProductMgmtId = id;
+  renderProductMgmtList();
+}
+function cancelEditProduct(){
+  editingProductMgmtId = null;
+  renderProductMgmtList();
+}
+
+let mgmtPendingImage = null;
+async function handleMgmtImagePick(id, e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const dataUrl = await compressImageFile(file, 300, 0.6);
+  mgmtPendingImage = dataUrl;
+  const preview = document.getElementById('mgmtPreview-'+id);
+  if(preview){ preview.outerHTML = `<img id="mgmtPreview-${id}" src="${dataUrl}">`; }
+}
+
+async function saveEditProduct(id){
+  const nameInput = document.getElementById('mgmtName-'+id);
+  const newName = nameInput.value.trim();
+  if(!newName){ showToast('اكتب اسم صحيح'); return; }
+  const product = productMgmtCache.find(p=>p.id===id);
+  const payload = {name: newName};
+  if(mgmtPendingImage) payload.image = mgmtPendingImage;
+  try{
+    await db.collection('global_products').doc(id).set(payload, {merge:true});
+    showToast('تم الحفظ ✔');
+    mgmtPendingImage = null;
+    editingProductMgmtId = null;
+    loadProductMgmtList();
+  }catch(e){
+    console.error(e);
+    showToast('صار خطأ بالحفظ — تأكد قواعد الأمان تسمح للأدمن يعدّل الاسم');
+  }
+}
+
+async function deleteGlobalProduct(id){
+  if(!confirm('متأكد تبي تحذف هذا المنتج من القاعدة المشتركة؟')) return;
+  try{
+    await db.collection('global_products').doc(id).delete();
+    showToast('تم الحذف');
+    loadProductMgmtList();
+  }catch(e){
+    console.error(e);
+    showToast('صار خطأ بالحذف — تأكد قواعد الأمان تسمح للأدمن يحذف');
   }
 }
 
