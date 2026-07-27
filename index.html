@@ -322,8 +322,14 @@ input:focus{outline:none;border-color:var(--green);}
 
   <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
     👤 مسجّل باسم: <b id="userLabel">—</b>
+    <button onclick="manualRefreshData()" title="تحديث المنتجات والصور" style="background:none;border:none;color:var(--green-dark);font-size:14px;cursor:pointer;padding:0 4px;">🔄</button>
     <button onclick="openCurrencyModal()" id="currencyBadgeBtn" style="margin-right:auto;background:var(--paper-2);border:1px solid var(--line);border-radius:999px;color:var(--green-dark);font-size:11px;font-weight:700;cursor:pointer;padding:3px 10px;">🌍 —</button>
     <button onclick="logOut()" style="background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">تسجيل خروج</button>
+  </div>
+
+  <div id="broadcastBanner" style="display:none;background:linear-gradient(90deg, var(--green), var(--amber));color:#fff;border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;font-weight:600;align-items:center;justify-content:space-between;gap:10px;">
+    <span id="broadcastText"></span>
+    <button onclick="dismissBroadcast()" style="background:none;border:none;color:#fff;font-size:16px;padding:0 4px;flex-shrink:0;">✕</button>
   </div>
 
   <!-- CART TAB -->
@@ -381,9 +387,9 @@ input:focus{outline:none;border-color:var(--green);}
         <label id="priceLabel">السعر (للقطعة)</label>
         <input type="number" id="pPrice" placeholder="0.000" step="0.001" min="0">
       </div>
-      <div class="field" style="display:flex;align-items:center;gap:8px;background:var(--paper-2);padding:9px 12px;border-radius:10px;margin-bottom:12px;">
-        <input type="checkbox" id="pTaxable" checked style="width:18px;height:18px;flex-shrink:0;accent-color:var(--green);">
-        <label for="pTaxable" style="margin:0;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;">🧾 يشمله الضريبة (ألغِ التحديد لو هذا المنتج معفى)</label>
+      <div class="unit-toggle" style="margin-bottom:12px;">
+        <button type="button" class="unit-btn active" id="taxableBtn" onclick="setTaxableMode(true)">🧾 عليه ضريبة</button>
+        <button type="button" class="unit-btn" id="exemptBtn" onclick="setTaxableMode(false)">🚫 معفى من الضريبة</button>
       </div>
       <div class="img-upload-row">
         <div class="img-preview-box" id="imgPreviewBox">
@@ -456,6 +462,15 @@ input:focus{outline:none;border-color:var(--green);}
   <!-- ADMIN TAB -->
   <div id="adminTab" style="display:none;">
     <div class="card">
+      <h2>📢 إعلام لكل المستخدمين</h2>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">اكتب رسالة تظهر لكل المستخدمين أول ما يفتحون التطبيق (مثلاً: "حدّثنا صور بعض المنتجات، اضغط 🔄 فوق لتحديثها").</p>
+      <div class="field">
+        <input type="text" id="broadcastInput" placeholder="نص الإعلام...">
+      </div>
+      <button class="add-btn" onclick="publishBroadcast()">📢 نشر الإعلام</button>
+      <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="clearBroadcast()">🗑 إلغاء الإعلام الحالي</button>
+    </div>
+    <div class="card">
       <h2>إحصائيات عامة</h2>
       <div id="adminStats" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
     </div>
@@ -493,10 +508,7 @@ input:focus{outline:none;border-color:var(--green);}
       <span class="chev" id="summaryToggleIcon">▾</span>
     </div>
     <div id="summaryDetails" style="display:none;">
-      <div class="tax-line">
-        <span>نسبة الضريبة %</span>
-        <input type="number" id="taxPercent" placeholder="0" min="0" step="0.1" oninput="renderSummary()">
-      </div>
+      <div class="summary-row"><span>نسبة الضريبة</span><span class="val" style="cursor:pointer;text-decoration:underline;" onclick="openCurrencyModal()" id="taxPercentDisplay">0% (عدّلها ⚙️)</span></div>
       <div class="summary-row"><span>عدد المنتجات</span><span class="val" id="sumCount">0</span></div>
       <div class="summary-row"><span>المجموع قبل الضريبة</span><span class="val" id="sumSubtotal">0.000</span></div>
       <div class="summary-row"><span>الضريبة</span><span class="val" id="sumTax">0.000</span></div>
@@ -551,7 +563,18 @@ input:focus{outline:none;border-color:var(--green);}
 
 <!-- Currency modal -->
 <div class="modal-bg" id="currencyModal">
-  <div class="modal sync-modal" style="max-height:80vh;display:flex;flex-direction:column;">
+  <div class="modal sync-modal" style="max-height:85vh;display:flex;flex-direction:column;">
+    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">إعدادات العملة والضريبة</h2>
+
+    <div style="background:var(--paper-2);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <label style="font-size:12.5px;font-weight:700;color:var(--ink);display:block;margin-bottom:6px;">🧾 نسبة الضريبة المعتادة ببلدك %</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" id="defaultTaxInput" placeholder="مثال: 5" min="0" step="0.1" style="flex:1;">
+        <button onclick="saveDefaultTax()" style="flex-shrink:0;padding:8px 16px;">حفظ</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:6px 0 0;">تنحسب تلقائياً على أي منتج "عليه ضريبة" — ما تحتاج تكتبها كل مرة.</p>
+    </div>
+
     <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;">اختر عملتك</h2>
     <input type="text" id="currencySearch" placeholder="ابحث عن عملة..." oninput="renderCurrencyList()" style="margin-bottom:10px;">
     <div id="currencyList" style="overflow-y:auto;flex:1;text-align:right;"></div>
@@ -575,7 +598,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v23'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v25'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -617,6 +640,7 @@ let editingTripId = null;
 let editingTripCurrencyCode = null;
 let currentImageDataUrl = '';
 let currentUnit = 'piece';
+let currentTaxable = true;
 let tripsCache = {};
 let prepListCache = [];
 let statsVisible = false;
@@ -763,6 +787,7 @@ auth.onAuthStateChanged(async (user)=>{
     loadProductsCache();
     loadCurrencyPreference();
     checkAdminStatus();
+    loadBroadcast();
   } else {
     isAdminUser = false;
     document.getElementById('tabAdmin').style.display = 'none';
@@ -816,6 +841,7 @@ const CURRENCIES = [
   {code:'NOK', name:'كرونة نرويجية', symbol:'kr', decimals:2},
 ];
 let currentCurrency = CURRENCIES[0]; // fallback مبدئي (يتحدد أوتوماتيكياً أو يدوياً بعدين)
+let currentDefaultTax = 0;
 
 function fmt(n, currOverride){
   const c = currOverride || currentCurrency;
@@ -834,7 +860,9 @@ async function loadCurrencyPreference(){
   if(!currentUser) return;
   try{
     const doc = await basketRef().get();
-    const savedCode = doc.exists && doc.data().currency;
+    const data = doc.exists ? doc.data() : {};
+    currentDefaultTax = typeof data.defaultTaxPercent === 'number' ? data.defaultTaxPercent : 0;
+    const savedCode = data.currency;
     if(savedCode){
       const found = CURRENCIES.find(c=>c.code===savedCode);
       if(found) currentCurrency = found;
@@ -847,6 +875,15 @@ async function loadCurrencyPreference(){
   await detectCurrencyByIP();
   updateCurrencyBadge();
   renderCart(); renderSummary(); loadHistory();
+}
+
+async function saveDefaultTax(){
+  const val = parseFloat(document.getElementById('defaultTaxInput').value);
+  if(isNaN(val) || val<0){ showToast('اكتب نسبة صحيحة'); return; }
+  currentDefaultTax = val;
+  try{ await basketRef().set({defaultTaxPercent: val}, {merge:true}); }catch(e){}
+  renderSummary();
+  showToast('تم حفظ نسبة الضريبة ✔');
 }
 
 async function detectCurrencyByIP(){
@@ -865,6 +902,7 @@ async function detectCurrencyByIP(){
 
 function openCurrencyModal(){
   document.getElementById('currencySearch').value = '';
+  document.getElementById('defaultTaxInput').value = currentDefaultTax || '';
   renderCurrencyList();
   document.getElementById('currencyModal').classList.add('open');
 }
@@ -912,7 +950,6 @@ async function loadDraft(){
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){ console.error(e); }
   document.getElementById('storeName').value = '';
   document.getElementById('tripDate').value = state.date;
-  document.getElementById('taxPercent').value = '';
   document.getElementById('discountAmount').value = '';
   document.getElementById('budgetAmount').value = '';
   renderCart(); renderSummary();
@@ -922,7 +959,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('tripDate').value = todayISO();
   document.getElementById('storeName').addEventListener('input', e=>{ state.store=e.target.value; saveDraft(); });
   document.getElementById('tripDate').addEventListener('input', e=>{ state.date=e.target.value; saveDraft(); });
-  document.getElementById('taxPercent').addEventListener('input', e=>{ state.taxPercent=e.target.value; saveDraft(); });
   document.getElementById('discountAmount').addEventListener('input', e=>{ state.discount=e.target.value; saveDraft(); });
   document.getElementById('budgetAmount').addEventListener('input', e=>{ state.budget=e.target.value; saveDraft(); renderSummary(); });
   document.getElementById('pBarcode').addEventListener('input', checkBarcodePrice);
@@ -946,6 +982,22 @@ async function loadProductsCache(){
 async function mergeGlobalProducts(){
   try{
     const snap = await db.collection('global_products').limit(2000).get();
+    const globalById = {};
+    snap.forEach(doc=>{ globalById[doc.id] = doc.data(); });
+
+    // 1) حدّث أي منتج عندك مسبقاً (شخصي) بأحدث اسم/صورة/وحدة من القاعدة المشتركة (بالباركود أو بمعرّف الاسم)
+    productsCache.forEach(p=>{
+      const key = p.barcode || slugify(p.name);
+      const g = globalById[key];
+      if(g){
+        p.name = g.name || p.name;
+        p.image = g.image || p.image;
+        p.unit = g.unit || p.unit;
+        if(g.taxable !== undefined) p.taxable = g.taxable;
+      }
+    });
+
+    // 2) أضف أي منتج مشترك جديد ما عندك أصلاً
     const known = new Set(productsCache.map(p=>p.name.trim().toLowerCase()));
     snap.forEach(doc=>{
       const g = doc.data();
@@ -1007,6 +1059,12 @@ function setUnitMode(mode){
     qtyInput.placeholder = '';
     priceLabel.textContent = 'السعر (للقطعة)';
   }
+}
+
+function setTaxableMode(taxable){
+  currentTaxable = taxable;
+  document.getElementById('taxableBtn').classList.toggle('active', taxable);
+  document.getElementById('exemptBtn').classList.toggle('active', !taxable);
 }
 
 function formatQty(item){
@@ -1133,7 +1191,7 @@ function selectSuggestion(idx){
   if(!p) return;
   document.getElementById('pName').value = p.name;
   setUnitMode(p.unit || 'piece');
-  document.getElementById('pTaxable').checked = p.taxable !== false;
+  setTaxableMode(p.taxable !== false);
   if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
   if(p.image){ currentImageDataUrl = p.image; showImagePreview(p.image); } else { removeProductImage(); }
   if(p.price != null){
@@ -1166,7 +1224,7 @@ async function checkBarcodePrice(){
       const g = gdoc.data();
       document.getElementById('pName').value = document.getElementById('pName').value || g.name;
       setUnitMode(g.unit || 'piece');
-      if(g.taxable !== undefined) document.getElementById('pTaxable').checked = g.taxable !== false;
+      if(g.taxable !== undefined) setTaxableMode(g.taxable !== false);
       if(g.image){ currentImageDataUrl = g.image; showImagePreview(g.image); }
     }
   }catch(e){ /* تجاهل، القاعدة المشتركة اختيارية */ }
@@ -1180,7 +1238,7 @@ async function checkBarcodePrice(){
       document.getElementById('pName').value = document.getElementById('pName').value || info.name;
       setUnitMode(info.unit || 'piece');
       document.getElementById('pPrice').value = info.price;
-      if(info.taxable !== undefined) document.getElementById('pTaxable').checked = info.taxable !== false;
+      if(info.taxable !== undefined) setTaxableMode(info.taxable !== false);
       if(info.image){ currentImageDataUrl = info.image; showImagePreview(info.image); }
       compareAndShow(info.price, info);
     } else if(document.getElementById('pName').value){
@@ -1222,7 +1280,7 @@ async function addItem(){
   const unit = currentUnit;
   const qty = unit==='kg' ? (qtyRaw>0 ? qtyRaw : NaN) : Math.max(1, parseInt(qtyRaw)||1);
   const barcode = document.getElementById('pBarcode').value.trim();
-  const taxable = document.getElementById('pTaxable').checked;
+  const taxable = currentTaxable;
 
   if(!name){ showToast('اكتب اسم المنتج'); return; }
   if(isNaN(price) || price<0){ showToast('اكتب سعر صحيح'); return; }
@@ -1265,7 +1323,7 @@ function editItem(id){
   setUnitMode(item.unit || 'piece');
   document.getElementById('pQty').value = item.qty;
   document.getElementById('pBarcode').value = item.barcode || '';
-  document.getElementById('pTaxable').checked = item.taxable !== false;
+  setTaxableMode(item.taxable !== false);
   if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); } else { removeProductImage(); }
   document.getElementById('editingBanner').classList.add('show');
   document.getElementById('addBtn').textContent = '💾 حفظ التعديل';
@@ -1280,7 +1338,7 @@ function cancelEdit(){
   setUnitMode('piece');
   document.getElementById('pQty').value='1';
   document.getElementById('pBarcode').value='';
-  document.getElementById('pTaxable').checked = true;
+  setTaxableMode(true);
   document.getElementById('priceAlert').style.display='none';
   document.getElementById('storeAlert').style.display='none';
   document.getElementById('editingBanner').classList.remove('show');
@@ -1327,7 +1385,7 @@ function renderSummary(){
   const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxableSubtotal = state.items.filter(i=>i.taxable!==false).reduce((s,i)=>s+i.price*i.qty,0);
-  const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
+  const taxPct = currentDefaultTax || 0;
   const tax = taxableSubtotal*(taxPct/100);
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
@@ -1335,6 +1393,7 @@ function renderSummary(){
   document.getElementById('sumCountCompact').textContent = count;
   document.getElementById('sumSubtotal').textContent = fmt(subtotal);
   document.getElementById('sumTax').textContent = fmt(tax);
+  document.getElementById('taxPercentDisplay').textContent = taxPct + '% (عدّلها ⚙️)';
   document.getElementById('sumTotal').textContent = fmt(total);
   document.getElementById('sumCurrencySymbol').textContent = currentCurrency.symbol + ' ' + currentCurrency.code;
   renderBudgetBar(total);
@@ -1386,7 +1445,7 @@ async function finishTrip(){
   const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
   const taxableSubtotal = state.items.filter(i=>i.taxable!==false).reduce((s,i)=>s+i.price*i.qty,0);
-  const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
+  const taxPct = currentDefaultTax || 0;
   const tax = taxableSubtotal*(taxPct/100);
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
@@ -1405,7 +1464,6 @@ async function finishTrip(){
   state = { store:'', date: todayISO(), taxPercent:'', discount:'', budget:'', items:[] }; budgetWarningShown=false;
   try{ await basketRef().set({draft: state}, {merge:true}); }catch(e){}
   document.getElementById('storeName').value='';
-  document.getElementById('taxPercent').value='';
   document.getElementById('discountAmount').value='';
   document.getElementById('budgetAmount').value='';
   document.getElementById('tripDate').value = state.date;
@@ -1626,6 +1684,80 @@ async function checkAdminStatus(){
     isAdminUser = doc.exists;
     document.getElementById('tabAdmin').style.display = isAdminUser ? 'inline-block' : 'none';
   }catch(e){ isAdminUser = false; }
+}
+
+/* ---- تحديث ذاتي للبيانات (بدون تسجيل خروج) ---- */
+async function manualRefreshData(){
+  showToast('🔄 جاري التحديث...');
+  try{
+    await loadProductsCache();
+    renderCart();
+    if(document.getElementById('prepTab').style.display !== 'none') renderPrepGallery();
+    showToast('تم تحديث المنتجات والصور ✔');
+  }catch(e){
+    showToast('صار خطأ بالتحديث');
+  }
+}
+
+async function silentAutoRefresh(){
+  if(!currentUser) return;
+  try{
+    await loadProductsCache();
+    renderCart();
+    if(document.getElementById('prepTab').style.display !== 'none') renderPrepGallery();
+    loadBroadcast();
+  }catch(e){}
+}
+
+// يحدّث البيانات تلقائياً كل ما رجع المستخدم للتطبيق (بدون ما يحتاج يسجل خروج)
+let lastAutoRefresh = 0;
+function maybeAutoRefresh(){
+  const now = Date.now();
+  if(now - lastAutoRefresh < 10000) return; // منع تكرار التحديث لو تبدّل الفوكس بسرعة
+  lastAutoRefresh = now;
+  silentAutoRefresh();
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') maybeAutoRefresh();
+});
+window.addEventListener('focus', maybeAutoRefresh);
+window.addEventListener('pageshow', (e)=>{ if(e.persisted) maybeAutoRefresh(); });
+
+/* ---- إعلام لكل المستخدمين (يديره الأدمن) ---- */
+async function loadBroadcast(){
+  try{
+    const doc = await db.collection('app_meta').doc('broadcast').get();
+    if(!doc.exists || !doc.data().message){ document.getElementById('broadcastBanner').style.display='none'; return; }
+    const b = doc.data();
+    const dismissedId = localStorage.getItem('dismissedBroadcastId');
+    if(dismissedId === b.id){ document.getElementById('broadcastBanner').style.display='none'; return; }
+    document.getElementById('broadcastText').textContent = '📢 ' + b.message;
+    document.getElementById('broadcastBanner').style.display = 'flex';
+  }catch(e){ /* اختياري، نتجاهل أي خطأ */ }
+}
+
+function dismissBroadcast(){
+  document.getElementById('broadcastBanner').style.display = 'none';
+  db.collection('app_meta').doc('broadcast').get().then(doc=>{
+    if(doc.exists) localStorage.setItem('dismissedBroadcastId', doc.data().id);
+  }).catch(()=>{});
+}
+
+async function publishBroadcast(){
+  const msg = document.getElementById('broadcastInput').value.trim();
+  if(!msg){ showToast('اكتب نص الإعلام أول'); return; }
+  try{
+    await db.collection('app_meta').doc('broadcast').set({message: msg, id: uid()+Date.now()});
+    showToast('تم نشر الإعلام لكل المستخدمين ✔');
+    document.getElementById('broadcastInput').value = '';
+  }catch(e){ console.error(e); showToast('صار خطأ بالنشر'); }
+}
+
+async function clearBroadcast(){
+  try{
+    await db.collection('app_meta').doc('broadcast').set({message: '', id: 'cleared'+Date.now()});
+    showToast('تم إلغاء الإعلام');
+  }catch(e){ showToast('صار خطأ'); }
 }
 
 async function deleteCollectionDocs(colRef){
@@ -1977,7 +2109,6 @@ async function editTrip(id){
   state = { store: trip.store, date: trip.date, taxPercent: trip.taxPercent || '', discount: trip.discount || '', budget:'', items: trip.items.map(i=>({...i})) };
   document.getElementById('storeName').value = state.store;
   document.getElementById('tripDate').value = state.date;
-  document.getElementById('taxPercent').value = state.taxPercent;
   document.getElementById('discountAmount').value = state.discount;
   document.getElementById('budgetAmount').value = '';
   renderCart(); renderSummary(); saveDraft();
