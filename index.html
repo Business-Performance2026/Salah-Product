@@ -241,6 +241,16 @@ input:focus{outline:none;border-color:var(--green);}
 .edit-btn{background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:0 2px;flex-shrink:0;}
 
 .img-upload-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+
+.bulk-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line);}
+.bulk-row .bulk-thumb{
+  width:48px;height:48px;border-radius:9px;border:1.5px dashed var(--line);background:var(--paper-2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden;
+}
+.bulk-row .bulk-thumb img{width:100%;height:100%;object-fit:cover;}
+.bulk-row .bulk-fields{flex:1;display:flex;flex-direction:column;gap:5px;}
+.bulk-row .bulk-fields input{padding:6px 9px;font-size:12.5px;}
+.bulk-row .bulk-del{background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;flex-shrink:0;}
 .img-preview-box{
   width:56px;height:56px;border-radius:10px;border:1.5px dashed var(--line);background:var(--paper-2);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden;position:relative;
@@ -430,6 +440,14 @@ input:focus{outline:none;border-color:var(--green);}
       <div id="adminStats" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
     </div>
     <div class="card">
+      <h2>📸 رفع صور منتجات بالجملة</h2>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">صوّر أو اختر صور منتجاتك (اللي عندك فعلياً)، اكتب اسم كل منتج، وارفعهم دفعة وحدة للقاعدة المشتركة بين كل المستخدمين.</p>
+      <div id="bulkImageRows"></div>
+      <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="addBulkImageRow()">+ إضافة صف</button>
+      <button class="add-btn" style="margin-top:10px;" onclick="uploadBulkImages()">☁️ رفع الكل للقاعدة المشتركة</button>
+      <div id="bulkUploadStatus" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
+    </div>
+    <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <h2 style="margin:0;">كل المستخدمين</h2>
         <input type="text" id="adminSearch" placeholder="بحث باسم المستخدم" oninput="renderAdminUsers()" style="max-width:150px;padding:6px 10px;font-size:12px;">
@@ -529,7 +547,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v19'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v20'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -970,27 +988,38 @@ function formatQty(item){
   return '×' + item.qty;
 }
 
+function compressImageFile(file, maxDim, quality){
+  maxDim = maxDim || 300;
+  quality = quality || 0.6;
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+        else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function handleImageSelect(e){
   const file = e.target.files && e.target.files[0];
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    const img = new Image();
-    img.onload = ()=>{
-      const maxDim = 300;
-      let w = img.width, h = img.height;
-      if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
-      else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      currentImageDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-      showImagePreview(currentImageDataUrl);
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+  compressImageFile(file).then(dataUrl=>{
+    currentImageDataUrl = dataUrl;
+    showImagePreview(dataUrl);
+  });
   e.target.value = '';
 }
 
@@ -1536,10 +1565,84 @@ async function deleteCollectionDocs(colRef){
   await batch.commit();
 }
 
+/* ---- رفع صور منتجات بالجملة ---- */
+let bulkImageRows = [];
+
+function addBulkImageRow(){
+  const row = {id: uid(), file:null, preview:'', name:'', barcode:''};
+  bulkImageRows.push(row);
+  renderBulkImageRows();
+}
+
+function removeBulkImageRow(id){
+  bulkImageRows = bulkImageRows.filter(r=>r.id!==id);
+  renderBulkImageRows();
+}
+
+function renderBulkImageRows(){
+  const box = document.getElementById('bulkImageRows');
+  if(!bulkImageRows.length){
+    box.innerHTML = '<div class="receipt-empty">اضغط "+ إضافة صف" عشان تبدأ</div>';
+    return;
+  }
+  box.innerHTML = bulkImageRows.map(r=>`
+    <div class="bulk-row">
+      <div class="bulk-thumb" onclick="document.getElementById('bulkFile-${r.id}').click()">
+        ${r.preview ? `<img src="${r.preview}">` : '📷'}
+      </div>
+      <input type="file" id="bulkFile-${r.id}" accept="image/*" style="display:none" onchange="handleBulkFilePick('${r.id}', event)">
+      <div class="bulk-fields">
+        <input type="text" placeholder="اسم المنتج" value="${escapeHtml(r.name)}" oninput="updateBulkRowField('${r.id}','name',this.value)">
+        <input type="text" placeholder="الباركود (اختياري)" value="${escapeHtml(r.barcode)}" oninput="updateBulkRowField('${r.id}','barcode',this.value)">
+      </div>
+      <button class="bulk-del" onclick="removeBulkImageRow('${r.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function updateBulkRowField(id, field, value){
+  const row = bulkImageRows.find(r=>r.id===id);
+  if(row) row[field] = value;
+}
+
+async function handleBulkFilePick(id, e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const row = bulkImageRows.find(r=>r.id===id);
+  if(!row) return;
+  row.file = file;
+  row.preview = await compressImageFile(file, 300, 0.6);
+  renderBulkImageRows();
+}
+
+async function uploadBulkImages(){
+  const statusBox = document.getElementById('bulkUploadStatus');
+  const validRows = bulkImageRows.filter(r=>r.preview && r.name.trim());
+  if(!validRows.length){ showToast('لازم تحط صورة واسم لكل صف على الأقل'); return; }
+  let done = 0, failed = 0;
+  for(const r of validRows){
+    statusBox.textContent = `جاري الرفع... (${done+failed+1}/${validRows.length})`;
+    const barcode = r.barcode.trim();
+    const productId = barcode || slugify(r.name.trim());
+    try{
+      await globalProductRef(productId).set({name: r.name.trim(), unit:'piece', image: r.preview}, {merge:true});
+      done++;
+    }catch(e){
+      failed++;
+      console.error('bulk upload failed for', r.name, e);
+    }
+  }
+  statusBox.textContent = `تم رفع ${done} منتج${failed ? ' — فشل ' + failed : ''} ✔`;
+  bulkImageRows = bulkImageRows.filter(r=>!validRows.includes(r));
+  renderBulkImageRows();
+  showToast(`تم رفع ${done} صورة للقاعدة المشتركة`);
+}
+
 async function loadAdminPanel(){
   if(!isAdminUser){ showToast('ما عندك صلاحية إدارة'); switchTab('cart'); return; }
   document.getElementById('adminStats').textContent = 'جاري التحميل...';
   document.getElementById('adminUsersList').textContent = 'جاري التحميل...';
+  renderBulkImageRows();
   try{
     const usersSnap = await db.collection('baskets').get();
     adminUsersCache = usersSnap.docs.map(d=>({uid:d.id, ...d.data()}));
