@@ -322,7 +322,6 @@ input:focus{outline:none;border-color:var(--green);}
 
   <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
     👤 مسجّل باسم: <b id="userLabel">—</b>
-    <button onclick="manualRefreshData()" title="تحديث المنتجات والصور" style="background:none;border:none;color:var(--green-dark);font-size:14px;cursor:pointer;padding:0 4px;">🔄</button>
     <button onclick="openCurrencyModal()" id="currencyBadgeBtn" style="margin-right:auto;background:var(--paper-2);border:1px solid var(--line);border-radius:999px;color:var(--green-dark);font-size:11px;font-weight:700;cursor:pointer;padding:3px 10px;">🌍 —</button>
     <button onclick="logOut()" style="background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">تسجيل خروج</button>
   </div>
@@ -598,7 +597,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v25'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v26'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1687,18 +1686,6 @@ async function checkAdminStatus(){
 }
 
 /* ---- تحديث ذاتي للبيانات (بدون تسجيل خروج) ---- */
-async function manualRefreshData(){
-  showToast('🔄 جاري التحديث...');
-  try{
-    await loadProductsCache();
-    renderCart();
-    if(document.getElementById('prepTab').style.display !== 'none') renderPrepGallery();
-    showToast('تم تحديث المنتجات والصور ✔');
-  }catch(e){
-    showToast('صار خطأ بالتحديث');
-  }
-}
-
 async function silentAutoRefresh(){
   if(!currentUser) return;
   try{
@@ -1733,7 +1720,9 @@ async function loadBroadcast(){
     if(dismissedId === b.id){ document.getElementById('broadcastBanner').style.display='none'; return; }
     document.getElementById('broadcastText').textContent = '📢 ' + b.message;
     document.getElementById('broadcastBanner').style.display = 'flex';
-  }catch(e){ /* اختياري، نتجاهل أي خطأ */ }
+  }catch(e){
+    console.error('loadBroadcast error:', e);
+  }
 }
 
 function dismissBroadcast(){
