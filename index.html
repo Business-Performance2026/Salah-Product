@@ -448,6 +448,7 @@ input:focus{outline:none;border-color:var(--green);}
         <button onclick="clearPrepList()" style="position:absolute;left:0;background:none;border:none;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline;" data-i18n="clearAll">مسح الكل</button>
       </div>
       <div id="prepList"><div class="receipt-empty" data-i18n="prepEmpty">القائمة فاضية — أضف أول منتج تبي تشتريه</div></div>
+      <button id="confirmPurchaseBtn" class="add-btn" style="display:none;margin-top:14px;" onclick="confirmPurchase()" data-i18n="confirmPurchase">✅ تأكيد الشراء</button>
     </div>
   </div>
 
@@ -639,7 +640,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v34'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v35'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -676,6 +677,62 @@ let currentUser = null;
 let isAdminUser = false;
 let adminUsersCache = [];
 let productsCache = [];
+
+/* ================= فئات ترتيب الروشن (بترتيب المسار المعتاد بالسوبرماركت) ================= */
+const CATEGORIES = [
+  { id:'produce', ar:'🥦 خضار وفواكه', en:'🥦 Produce', keywords:['طماط','بندورة','خيار','بصل','ثوم','بطاطس','بطاطا','جزر','فلفل','باذنجان','كوسا','خس','جرجير','بقدونس','كزبرة','نعناع','ليمون','موز','تفاح','برتقال','عنب','بطيخ','شمام','مانجو','رمان','كيوي','أناناس','فراولة','تمر','خضار','فاكهة','فواكه'] },
+  { id:'meat', ar:'🍗 لحوم ودواجن وأسماك', en:'🍗 Meat & Seafood', keywords:['دجاج','لحم','فراخ','كبدة','سمك','هامور','سبيتي','جمبري','ربيان','إبل','نقانق','برجر','لانشون','مفروم','ستيك'] },
+  { id:'dairy', ar:'🥛 ألبان وبيض', en:'🥛 Dairy & Eggs', keywords:['حليب','لبن','زبادي','رائب','جبنة','جبن','زبدة','قشطة','بيض','لبنة','آيس كريم','كريمة'] },
+  { id:'bakery', ar:'🍞 مخبوزات', en:'🍞 Bakery', keywords:['خبز','توست','صمون','كرواسون','كيك','بسكويت شاي','دونات','رقاق','خبز عربي'] },
+  { id:'canned', ar:'🥫 معلبات وحبوب', en:'🥫 Canned & Grains', keywords:['تونة معلبة','فول معلب','حمص معلب','ذرة معلبة','عدس','فاصوليا','حمص جاف','شوفان','كورن فليكس','معلب'] },
+  { id:'rice_pasta', ar:'🍚 أرز ومعكرونة', en:'🍚 Rice & Pasta', keywords:['أرز','رز','معكرونة','سباغيتي','شعيرية','فريكة','برغل'] },
+  { id:'spices', ar:'🧂 توابل وصلصات', en:'🧂 Spices & Sauces', keywords:['ملح','فلفل أسود','كمون','كركم','بهارات','صلصة','كاتشب','مايونيز','خردل','صويا','خل','زيت','سكر','عسل','طحينة'] },
+  { id:'beverages', ar:'🥤 مشروبات', en:'🥤 Beverages', keywords:['ماء','مياه','عصير','كولا','غازي','سفن أب','شاي','قهوة','نسكافيه','طاقة','مشروب'] },
+  { id:'snacks', ar:'🍫 وجبات خفيفة', en:'🍫 Snacks', keywords:['شيبس','مكسرات','شوكولاتة','شوكلاتة','بسكويت محلى','حلاوة','فشار','رقائق'] },
+  { id:'frozen', ar:'🧊 تجميد', en:'🧊 Frozen', keywords:['مجمد','مجمدة','سمبوسة','بيتزا','فطائر مجمدة'] },
+  { id:'cleaning', ar:'🧽 منظفات', en:'🧽 Cleaning', keywords:['مسحوق غسيل','سائل غسيل','معطر','مطهر','مناديل ورقية','ورق تواليت','أكياس قمامة','منظف','صابون سائل','مبيض','كلور'] },
+  { id:'personal_care', ar:'🧴 عناية شخصية', en:'🧴 Personal Care', keywords:['شامبو','بلسم','صابون','معجون أسنان','فرشاة أسنان','مزيل عرق','كريم','شفرات','مناديل مبللة','حفاضات'] },
+  { id:'uncategorized', ar:'📦 غير مصنّف', en:'📦 Uncategorized', keywords:[] },
+];
+
+function guessCategory(name){
+  const n = (name||'').trim().toLowerCase();
+  if(!n) return 'uncategorized';
+  for(const cat of CATEGORIES){
+    if(cat.id === 'uncategorized') continue;
+    for(const kw of cat.keywords){
+      if(n.includes(kw.toLowerCase())) return cat.id;
+    }
+  }
+  return 'uncategorized';
+}
+
+function categoryLabel(id){
+  const cat = CATEGORIES.find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1];
+  return currentLang==='en' ? cat.en : cat.ar;
+}
+
+function resolveCategoryForProduct(name){
+  // لو المنتج معروف عندنا (شخصي أو مشترك) وله فئة محفوظة، نستخدمها؛ وإلا نخمّن من الاسم
+  const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase());
+  if(known && known.category) return known.category;
+  return guessCategory(name);
+}
+
+async function setPrepItemCategory(id, category){
+  const item = prepListCache.find(p=>p.id===id);
+  if(!item) return;
+  item.category = category;
+  renderPrepList(); savePrepList();
+  // نتذكر التصنيف للمنتج بالقاعدة المشتركة لأي حد يضيفه بعدين
+  try{
+    const productId = item.barcode || slugify(item.name);
+    await globalProductRef(productId).set({name:item.name, category}, {merge:true});
+    const ci = productsCache.findIndex(p=>p.name.trim().toLowerCase()===item.name.trim().toLowerCase());
+    if(ci>-1) productsCache[ci].category = category;
+  }catch(e){}
+}
+
 let editingItemId = null;
 let editingTripId = null;
 let editingTripCurrencyCode = null;
@@ -920,6 +977,7 @@ const I18N = {
     addToCartFromPrep:'أضف لسلة', noResults:'ما فيه نتائج', historyEmpty:'ما فيه فواتير محفوظة بعد',
     noSavedImages:'ما فيه صور منتجات محفوظة بعد — أضف منتج بصورة من تبويب السلة وبيطلع هنا',
     alreadyInList:'موجود بقائمتك أصلاً', addedToPrep:'تمت الإضافة للروشن ✔',
+    confirmPurchase:'✅ تأكيد الشراء', reviewPricesHint:'راجع الأسعار بالسلة',
     monthNames:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
     times:'مرة', trips:'رحلة'
   },
@@ -958,6 +1016,7 @@ const I18N = {
     addToCartFromPrep:'Add to Cart', noResults:'No results', historyEmpty:'No saved invoices yet',
     noSavedImages:'No saved product images yet — add a product with a photo from the Cart tab and it\'ll show here',
     alreadyInList:'Already in your list', addedToPrep:'Added to list ✔',
+    confirmPurchase:'✅ Confirm Purchase', reviewPricesHint:'Review prices in cart',
     monthNames:['January','February','March','April','May','June','July','August','September','October','November','December'],
     times:'x', trips:'trips'
   }
@@ -1197,7 +1256,7 @@ async function mergeGlobalProducts(){
     const globalById = {};
     snap.forEach(doc=>{ globalById[doc.id] = doc.data(); });
 
-    // 1) حدّث أي منتج عندك مسبقاً (شخصي) بأحدث اسم/صورة/وحدة من القاعدة المشتركة (بالباركود أو بمعرّف الاسم)
+    // 1) حدّث أي منتج عندك مسبقاً (شخصي) بأحدث اسم/صورة/وحدة/فئة من القاعدة المشتركة (بالباركود أو بمعرّف الاسم)
     productsCache.forEach(p=>{
       const key = p.barcode || slugify(p.name);
       const g = globalById[key];
@@ -1206,6 +1265,7 @@ async function mergeGlobalProducts(){
         p.image = g.image || p.image;
         p.unit = g.unit || p.unit;
         if(g.taxable !== undefined) p.taxable = g.taxable;
+        if(g.category) p.category = g.category;
       }
     });
 
@@ -1216,7 +1276,7 @@ async function mergeGlobalProducts(){
       const key = (g.name||'').trim().toLowerCase();
       if(key && !known.has(key)){
         known.add(key);
-        productsCache.push({name:g.name, unit:g.unit||'piece', barcode:g.barcode||'', image:g.image||''}); // بدون سعر — مشترك بس بالاسم والصورة
+        productsCache.push({name:g.name, unit:g.unit||'piece', barcode:g.barcode||'', image:g.image||'', category:g.category||''}); // بدون سعر — مشترك بس بالاسم والصورة
       }
     });
   }catch(e){ console.error(e); }
@@ -1745,7 +1805,8 @@ function quickAddToPrepFromGallery(name){
     return;
   }
   const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase());
-  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', checked:false});
+  const category = resolveCategoryForProduct(name);
+  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', category, checked:false});
   renderPrepList(); savePrepList();
   showToast(t('addedToPrep'));
 }
@@ -1754,19 +1815,43 @@ function renderPrepList(){
   const box = document.getElementById('prepList');
   if(!prepListCache.length){
     box.innerHTML = `<div class="receipt-empty">${t('prepEmpty')}</div>`;
+    document.getElementById('confirmPurchaseBtn').style.display = 'none';
     return;
   }
-  box.innerHTML = prepListCache.map(p=>`
-    <div class="receipt-line">
-      <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green);">
-      ${p.image ? `<img class="thumb" src="${p.image}">` : ''}
-      <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(trName(p.name))}</span>
-      <span class="dots"></span>
-      <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;">
-      <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
-      <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
-    </div>
-  `).join('');
+
+  // نجمّع المنتجات حسب الفئة، ونرتب المجموعات بترتيب المسار بالسوبرماركت
+  const groups = {};
+  prepListCache.forEach(p=>{
+    const cat = p.category || 'uncategorized';
+    if(!groups[cat]) groups[cat] = [];
+    groups[cat].push(p);
+  });
+
+  const categorySelectOptions = CATEGORIES.map(c=>`<option value="${c.id}">${currentLang==='en'?c.en:c.ar}</option>`).join('');
+
+  let html = '';
+  CATEGORIES.forEach(cat=>{
+    const items = groups[cat.id];
+    if(!items || !items.length) return;
+    html += `<div style="font-family:'Tajawal';font-weight:800;font-size:13px;color:var(--green-dark);margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--paper-2);">${currentLang==='en'?cat.en:cat.ar} <span style="font-weight:600;color:var(--muted);font-size:11px;">(${items.length})</span></div>`;
+    html += items.map(p=>`
+      <div class="receipt-line" style="flex-wrap:wrap;">
+        <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green);">
+        ${p.image ? `<img class="thumb" src="${p.image}">` : ''}
+        <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(trName(p.name))}</span>
+        <span class="dots"></span>
+        <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;">
+        <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
+        <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
+        <select onchange="setPrepItemCategory('${p.id}', this.value)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);">
+          ${CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===(p.category||'uncategorized')?'selected':''}>${currentLang==='en'?c.en:c.ar}</option>`).join('')}
+        </select>
+      </div>
+    `).join('');
+  });
+
+  box.innerHTML = html;
+  document.getElementById('confirmPurchaseBtn').style.display = prepListCache.some(p=>p.checked) ? 'block' : 'none';
 }
 
 async function savePrepList(){
@@ -1779,9 +1864,31 @@ function addPrepItem(){
   const name = input.value.trim();
   if(!name) return;
   const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.toLowerCase());
-  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', checked:false});
+  const category = resolveCategoryForProduct(name);
+  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', category, checked:false});
   input.value='';
   renderPrepList(); savePrepList();
+}
+
+async function confirmPurchase(){
+  const boughtItems = prepListCache.filter(p=>p.checked);
+  if(!boughtItems.length){ showToast(t('selectAtLeastOne')); return; }
+
+  boughtItems.forEach(p=>{
+    const known = productsCache.find(kp=>kp.name.trim().toLowerCase()===p.name.trim().toLowerCase() && kp.price!=null);
+    state.items.push({
+      id: uid(), name: p.name, price: known ? known.price : 0, qty: p.qty||1,
+      unit:'piece', barcode: known ? known.barcode||'' : '', taxable:true, image: p.image||''
+    });
+  });
+
+  // نشيل المنتجات المشتراة من قائمة الروشن
+  prepListCache = prepListCache.filter(p=>!p.checked);
+  await savePrepList();
+  await saveDraft();
+  renderCart(); renderSummary(); renderPrepList();
+  switchTab('cart');
+  showToast(`✔ ${t('addedCount')} ${boughtItems.length} — ${t('reviewPricesHint')}`);
 }
 
 function updatePrepQty(id, value){
