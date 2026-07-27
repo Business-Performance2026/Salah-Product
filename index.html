@@ -597,7 +597,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v26'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v27'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1527,7 +1527,8 @@ function quickAddToPrepFromGallery(name){
     showToast('موجود بقائمتك أصلاً');
     return;
   }
-  prepListCache.push({id: uid(), name, checked:false});
+  const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase());
+  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', checked:false});
   renderPrepList(); savePrepList();
   showToast('تمت الإضافة للروشن ✔');
 }
@@ -1541,8 +1542,10 @@ function renderPrepList(){
   box.innerHTML = prepListCache.map(p=>`
     <div class="receipt-line">
       <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green);">
+      ${p.image ? `<img class="thumb" src="${p.image}">` : ''}
       <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(p.name)}</span>
       <span class="dots"></span>
+      <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;">
       <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">أضف لسلة</button>
       <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
     </div>
@@ -1558,9 +1561,17 @@ function addPrepItem(){
   const input = document.getElementById('prepItemInput');
   const name = input.value.trim();
   if(!name) return;
-  prepListCache.push({id: uid(), name, checked:false});
+  const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.toLowerCase());
+  prepListCache.push({id: uid(), name, qty: 1, image: known ? known.image||'' : '', checked:false});
   input.value='';
   renderPrepList(); savePrepList();
+}
+
+function updatePrepQty(id, value){
+  const item = prepListCache.find(p=>p.id===id);
+  const qty = parseFloat(value);
+  if(item) item.qty = (qty>0) ? qty : 1;
+  savePrepList();
 }
 
 function togglePrepItem(id){
@@ -1587,6 +1598,8 @@ function quickAddFromPrep(id){
   if(!item) return;
   switchTab('cart');
   document.getElementById('pName').value = item.name;
+  document.getElementById('pQty').value = item.qty || 1;
+  if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); }
   renderSuggestions();
   document.getElementById('pPrice').focus();
   if(!item.checked){ item.checked = true; savePrepList(); renderPrepList(); }
