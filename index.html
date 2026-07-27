@@ -381,6 +381,10 @@ input:focus{outline:none;border-color:var(--green);}
         <label id="priceLabel">السعر (للقطعة)</label>
         <input type="number" id="pPrice" placeholder="0.000" step="0.001" min="0">
       </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;background:var(--paper-2);padding:9px 12px;border-radius:10px;margin-bottom:12px;">
+        <input type="checkbox" id="pTaxable" checked style="width:18px;height:18px;flex-shrink:0;accent-color:var(--green);">
+        <label for="pTaxable" style="margin:0;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;">🧾 يشمله الضريبة (ألغِ التحديد لو هذا المنتج معفى)</label>
+      </div>
       <div class="img-upload-row">
         <div class="img-preview-box" id="imgPreviewBox">
           <span class="plus" id="imgPlusIcon">📷</span>
@@ -571,7 +575,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v22'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v23'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1129,6 +1133,7 @@ function selectSuggestion(idx){
   if(!p) return;
   document.getElementById('pName').value = p.name;
   setUnitMode(p.unit || 'piece');
+  document.getElementById('pTaxable').checked = p.taxable !== false;
   if(p.barcode) document.getElementById('pBarcode').value = p.barcode;
   if(p.image){ currentImageDataUrl = p.image; showImagePreview(p.image); } else { removeProductImage(); }
   if(p.price != null){
@@ -1154,13 +1159,14 @@ async function checkBarcodePrice(){
   if(!currentUser) return;
   alertBox.style.display='none';
 
-  // 1) الاسم/الوحدة/الصورة من القاعدة المشتركة بين كل المستخدمين (لو موجود)
+  // 1) الاسم/الوحدة/الصورة/حالة الضريبة من القاعدة المشتركة بين كل المستخدمين (لو موجود)
   try{
     const gdoc = await globalProductRef(code).get();
     if(gdoc.exists){
       const g = gdoc.data();
       document.getElementById('pName').value = document.getElementById('pName').value || g.name;
       setUnitMode(g.unit || 'piece');
+      if(g.taxable !== undefined) document.getElementById('pTaxable').checked = g.taxable !== false;
       if(g.image){ currentImageDataUrl = g.image; showImagePreview(g.image); }
     }
   }catch(e){ /* تجاهل، القاعدة المشتركة اختيارية */ }
@@ -1174,6 +1180,7 @@ async function checkBarcodePrice(){
       document.getElementById('pName').value = document.getElementById('pName').value || info.name;
       setUnitMode(info.unit || 'piece');
       document.getElementById('pPrice').value = info.price;
+      if(info.taxable !== undefined) document.getElementById('pTaxable').checked = info.taxable !== false;
       if(info.image){ currentImageDataUrl = info.image; showImagePreview(info.image); }
       compareAndShow(info.price, info);
     } else if(document.getElementById('pName').value){
@@ -1215,6 +1222,7 @@ async function addItem(){
   const unit = currentUnit;
   const qty = unit==='kg' ? (qtyRaw>0 ? qtyRaw : NaN) : Math.max(1, parseInt(qtyRaw)||1);
   const barcode = document.getElementById('pBarcode').value.trim();
+  const taxable = document.getElementById('pTaxable').checked;
 
   if(!name){ showToast('اكتب اسم المنتج'); return; }
   if(isNaN(price) || price<0){ showToast('اكتب سعر صحيح'); return; }
@@ -1222,23 +1230,23 @@ async function addItem(){
 
   if(editingItemId){
     const idx = state.items.findIndex(i=>i.id===editingItemId);
-    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, unit, barcode, image: currentImageDataUrl };
+    if(idx>-1) state.items[idx] = { id: editingItemId, name, price, qty, unit, barcode, taxable, image: currentImageDataUrl };
   } else {
-    state.items.push({ id: uid(), name, price, qty, unit, barcode, image: currentImageDataUrl });
+    state.items.push({ id: uid(), name, price, qty, unit, barcode, taxable, image: currentImageDataUrl });
   }
 
   const productId = barcode || slugify(name);
-  const productInfo = {name, price, unit, barcode: barcode||'', image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
+  const productInfo = {name, price, unit, barcode: barcode||'', taxable, image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
   try{
     await basketRef().collection('products').doc(productId).set(productInfo);
     const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
     if(ci>-1) productsCache[ci]=productInfo; else productsCache.push(productInfo);
   }catch(e){}
 
-  // شارك الاسم والوحدة والصورة بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
+  // شارك الاسم والوحدة والصورة وحالة الضريبة بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
   if(barcode){
     try{
-      await globalProductRef(barcode).set({name, unit, barcode, image: currentImageDataUrl||''}, {merge:true});
+      await globalProductRef(barcode).set({name, unit, barcode, taxable, image: currentImageDataUrl||''}, {merge:true});
     }catch(e){
       // لو الاسم يختلف عن التسجيل العام لنفس الباركود، قواعد الأمان ترفض التحديث — نتجاهلها بهدوء
     }
@@ -1257,6 +1265,7 @@ function editItem(id){
   setUnitMode(item.unit || 'piece');
   document.getElementById('pQty').value = item.qty;
   document.getElementById('pBarcode').value = item.barcode || '';
+  document.getElementById('pTaxable').checked = item.taxable !== false;
   if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); } else { removeProductImage(); }
   document.getElementById('editingBanner').classList.add('show');
   document.getElementById('addBtn').textContent = '💾 حفظ التعديل';
@@ -1271,6 +1280,7 @@ function cancelEdit(){
   setUnitMode('piece');
   document.getElementById('pQty').value='1';
   document.getElementById('pBarcode').value='';
+  document.getElementById('pTaxable').checked = true;
   document.getElementById('priceAlert').style.display='none';
   document.getElementById('storeAlert').style.display='none';
   document.getElementById('editingBanner').classList.remove('show');
@@ -1304,7 +1314,7 @@ function renderCart(){
     <div class="receipt-line">
       ${i.image ? `<img class="thumb" src="${i.image}">` : ''}
       <span class="qty">${formatQty(i)}</span>
-      <span class="name">${escapeHtml(i.name)}</span>
+      <span class="name">${escapeHtml(i.name)} ${i.taxable===false ? '<span style="color:var(--amber);font-size:10px;font-weight:700;">(معفى)</span>' : ''}</span>
       <span class="dots"></span>
       <span class="price">${fmt(i.price*i.qty)}</span>
       <button class="edit-btn" onclick="editItem('${i.id}')">✏️</button>
@@ -1316,8 +1326,9 @@ function renderCart(){
 function renderSummary(){
   const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
+  const taxableSubtotal = state.items.filter(i=>i.taxable!==false).reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
-  const tax = subtotal*(taxPct/100);
+  const tax = taxableSubtotal*(taxPct/100);
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
   document.getElementById('sumCount').textContent = count;
@@ -1374,8 +1385,9 @@ async function finishTrip(){
   if(!state.items.length){ showToast('السلة فاضية'); return; }
   const count = state.items.reduce((s,i)=>s+(i.unit==='kg'?1:i.qty),0);
   const subtotal = state.items.reduce((s,i)=>s+i.price*i.qty,0);
+  const taxableSubtotal = state.items.filter(i=>i.taxable!==false).reduce((s,i)=>s+i.price*i.qty,0);
   const taxPct = parseFloat(document.getElementById('taxPercent').value)||0;
-  const tax = subtotal*(taxPct/100);
+  const tax = taxableSubtotal*(taxPct/100);
   const discount = parseFloat(document.getElementById('discountAmount').value)||0;
   const total = Math.max(0, subtotal+tax-discount);
   const tripCurrencyCode = editingTripId ? (editingTripCurrencyCode || currentCurrency.code) : currentCurrency.code;
@@ -1808,11 +1820,21 @@ async function saveEditProduct(id){
   const newName = nameInput.value.trim();
   if(!newName){ showToast('اكتب اسم صحيح'); return; }
   const product = productMgmtCache.find(p=>p.id===id);
+  const oldName = product ? product.name : '';
   const payload = {name: newName};
   if(mgmtPendingImage) payload.image = mgmtPendingImage;
   try{
     await db.collection('global_products').doc(id).set(payload, {merge:true});
     showToast('تم الحفظ ✔');
+
+    // نحدّث النسخة المحفوظة بالجلسة الحالية فوراً (بدون ما ننتظر إعادة تحميل)
+    const cacheEntry = productsCache.find(p=> p.barcode===id || (!p.barcode && slugify(p.name)===id) || p.name.trim().toLowerCase()===oldName.trim().toLowerCase());
+    if(cacheEntry){
+      cacheEntry.name = newName;
+      if(mgmtPendingImage) cacheEntry.image = mgmtPendingImage;
+    }
+    renderPrepGallery();
+
     mgmtPendingImage = null;
     editingProductMgmtId = null;
     loadProductMgmtList();
