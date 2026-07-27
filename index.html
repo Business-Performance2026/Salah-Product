@@ -305,11 +305,10 @@ input:focus{outline:none;border-color:var(--green);}
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-functions-compat.js"></script>
 <!-- PDF export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- OCR لمسح الفواتير -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <div class="app">
   <header style="position:relative;">
     <div class="brand">
@@ -683,7 +682,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v32'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v33'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -709,6 +708,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+const cloudFunctions = firebase.functions();
 const FAKE_EMAIL_DOMAIN = 'mustryati-users.app';
 /* ===================================================== */
 
@@ -1395,50 +1395,34 @@ async function handleReceiptImage(e){
   document.getElementById('receiptUploadStep').style.display = 'none';
   document.getElementById('receiptLoadingStep').style.display = 'block';
   document.getElementById('receiptLoadingText').textContent = t('scanningText');
-  document.getElementById('receiptProgressBar').style.width = '5%';
+
+  // شريط تقدم تقريبي (ما عندنا نسبة حقيقية من استدعاء وحد للسيرفر، بس نعطي إحساس بالتحميل)
+  const bar = document.getElementById('receiptProgressBar');
+  bar.style.width = '10%';
+  let fakeProgress = 10;
+  const progressTimer = setInterval(()=>{
+    fakeProgress = Math.min(90, fakeProgress + 5);
+    bar.style.width = fakeProgress + '%';
+  }, 500);
 
   try{
-    // نكبّر الصورة شوي (بدون تصغير قوي زي صور المنتجات) عشان يقدر يقرأ النص أوضح
-    const dataUrl = await compressImageFile(file, 1400, 0.85);
-    const result = await Tesseract.recognize(dataUrl, 'ara+eng', {
-      logger: (m)=>{
-        if(m.status === 'recognizing text' && m.progress != null){
-          document.getElementById('receiptProgressBar').style.width = Math.round(m.progress*100) + '%';
-        }
-      }
-    });
-    const parsed = parseReceiptText(result.data.text || '');
-    receiptRows = parsed.map(p=>({id: uid(), name: p.name, price: p.price, checked: true}));
+    // صورة بجودة أعلى من صور المنتجات العادية عشان الذكاء الاصطناعي يقرأ التفاصيل صح
+    const dataUrl = await compressImageFile(file, 1600, 0.9);
+    const scanReceiptFn = cloudFunctions.httpsCallable('scanReceipt');
+    const result = await scanReceiptFn({ image: dataUrl });
+    const items = (result.data && result.data.items) || [];
+    receiptRows = items.map(p=>({id: uid(), name: p.name, price: p.price, qty: p.qty||1, checked: true}));
+    clearInterval(progressTimer);
+    bar.style.width = '100%';
     renderReceiptResults();
     document.getElementById('receiptLoadingStep').style.display = 'none';
     document.getElementById('receiptReviewStep').style.display = 'block';
   }catch(err){
-    console.error('OCR error:', err);
+    clearInterval(progressTimer);
+    console.error('AI scan error:', err);
     showToast(t('scanFailed'));
     resetReceiptScanner();
   }
-}
-
-function parseReceiptText(text){
-  const blacklist = /total|subtotal|vat|tax|cash|change|thank|balance|card|visa|master|شكرا|المجموع|الاجمالي|الإجمالي|ضريبة|نقدا|نقدي|الباقي|تاريخ|^date|time|invoice|receipt|فاتورة|رقم|no\.|qty|item|الكمية|صراف|cashier|table|طاولة|phone|هاتف|www\.|http/i;
-  const priceRegex = /(\d{1,4}[.,]\d{1,3})(?!\d)/g;
-  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-  const results = [];
-  lines.forEach(line=>{
-    if(blacklist.test(line)) return;
-    const matches = [...line.matchAll(priceRegex)];
-    if(!matches.length) return;
-    const last = matches[matches.length-1];
-    const priceStr = last[1].replace(',', '.');
-    const price = parseFloat(priceStr);
-    if(isNaN(price) || price<=0 || price>5000) return;
-    let name = (line.slice(0,last.index) + line.slice(last.index+last[0].length))
-      .replace(/[.\-_*|]{2,}/g,' ').replace(/\s+/g,' ').trim();
-    name = name.replace(/^[\d\sxX*×]+/, '').trim();
-    if(name.length < 2) return;
-    results.push({name, price});
-  });
-  return results;
 }
 
 function renderReceiptResults(){
@@ -1451,6 +1435,7 @@ function renderReceiptResults(){
     <div class="receipt-row">
       <input type="checkbox" ${r.checked?'checked':''} onchange="updateReceiptField('${r.id}','checked',this.checked)">
       <input type="text" value="${escapeHtml(r.name)}" oninput="updateReceiptField('${r.id}','name',this.value)">
+      <input type="number" step="1" min="1" value="${r.qty||1}" style="width:44px;" onchange="updateReceiptField('${r.id}','qty',this.value)">
       <input type="number" step="0.001" value="${r.price}" oninput="updateReceiptField('${r.id}','price',this.value)">
       <button class="del" onclick="deleteReceiptRow('${r.id}')">✕</button>
     </div>
@@ -1461,6 +1446,7 @@ function updateReceiptField(id, field, value){
   const row = receiptRows.find(r=>r.id===id);
   if(!row) return;
   if(field === 'price') row.price = parseFloat(value)||0;
+  else if(field === 'qty') row.qty = parseFloat(value)||1;
   else row[field] = value;
 }
 
@@ -1474,7 +1460,8 @@ async function addSelectedReceiptItems(){
   if(!selected.length){ showToast(t('selectAtLeastOne')); return; }
   for(const r of selected){
     const name = r.name.trim();
-    state.items.push({ id: uid(), name, price: r.price, qty: 1, unit:'piece', barcode:'', taxable:true, image:'' });
+    const qty = (r.qty && r.qty>0) ? r.qty : 1;
+    state.items.push({ id: uid(), name, price: r.price, qty, unit:'piece', barcode:'', taxable:true, image:'' });
     const productId = slugify(name);
     const productInfo = {name, price:r.price, unit:'piece', barcode:'', taxable:true, image:'', date: state.date||todayISO(), store: state.store||''};
     try{
