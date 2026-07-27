@@ -341,6 +341,7 @@ input:focus{outline:none;border-color:var(--green);}
           <button class="icon-btn" onclick="openScanner()" title="مسح بالكاميرا">📷</button>
         </div>
         <div class="price-alert" id="priceAlert"></div>
+        <div class="price-alert" id="storeAlert"></div>
       </div>
       <div class="row">
         <div class="field autocomplete-wrap">
@@ -528,7 +529,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v18'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v19'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1032,6 +1033,43 @@ function renderSuggestions(){
   box.classList.add('open');
 }
 
+function findCheaperStore(barcode, name){
+  const matches = [];
+  Object.values(tripsCache).forEach(trip=>{
+    if(!trip.store) return;
+    (trip.items||[]).forEach(item=>{
+      const isMatch = barcode
+        ? item.barcode === barcode
+        : (item.name||'').trim().toLowerCase() === (name||'').trim().toLowerCase();
+      if(isMatch && typeof item.price === 'number'){
+        matches.push({store: trip.store, price: item.price, date: trip.date, currency: trip.currency});
+      }
+    });
+  });
+  if(!matches.length) return null;
+  const cheapestByStore = {};
+  matches.forEach(m=>{
+    if(!cheapestByStore[m.store] || m.price < cheapestByStore[m.store].price){
+      cheapestByStore[m.store] = m;
+    }
+  });
+  return Object.values(cheapestByStore).sort((a,b)=>a.price-b.price)[0];
+}
+
+function showStoreComparisonAlert(barcode, name){
+  const box = document.getElementById('storeAlert');
+  const currentStore = (document.getElementById('storeName').value || '').trim();
+  const cheapest = findCheaperStore(barcode, name);
+  if(!cheapest || (currentStore && cheapest.store === currentStore)){
+    box.style.display = 'none';
+    return;
+  }
+  const cc = currencyByCode(cheapest.currency);
+  box.className = 'price-alert down';
+  box.style.display = 'flex';
+  box.textContent = `📍 هذا المنتج ألقيته أرخص بمحل "${cheapest.store}": ${fmt(cheapest.price, cc)} ${cc.symbol} (بتاريخ ${cheapest.date})`;
+}
+
 function selectSuggestion(idx){
   const results = JSON.parse(document.getElementById('suggestList').dataset.results || '[]');
   const p = results[idx];
@@ -1052,6 +1090,7 @@ function selectSuggestion(idx){
     document.getElementById('priceAlert').textContent = '📦 منتج معروف من مستخدمين ثانين — هذي أول مرة تشتريه انت، اكتب سعرك';
   }
   hideSuggestions();
+  showStoreComparisonAlert(p.barcode, p.name);
 }
 
 async function checkBarcodePrice(){
@@ -1090,6 +1129,7 @@ async function checkBarcodePrice(){
       alertBox.textContent = '📦 منتج معروف — هذي أول مرة تشتريه انت، اكتب سعرك';
     }
   }catch(e){}
+  showStoreComparisonAlert(code, document.getElementById('pName').value);
 }
 
 document.addEventListener('input', (e)=>{
@@ -1179,6 +1219,7 @@ function cancelEdit(){
   document.getElementById('pQty').value='1';
   document.getElementById('pBarcode').value='';
   document.getElementById('priceAlert').style.display='none';
+  document.getElementById('storeAlert').style.display='none';
   document.getElementById('editingBanner').classList.remove('show');
   document.getElementById('addBtn').textContent = '+ أضف للسلة';
   removeProductImage();
