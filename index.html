@@ -64,8 +64,8 @@ header .brand .sub{
 }
 .tab-btn{
   border:1.5px solid var(--line);background:#fff;color:var(--muted);
-  font-family:'Cairo';font-weight:600;font-size:12px;
-  padding:7px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;
+  font-family:'Cairo';font-weight:600;font-size:11.5px;
+  padding:7px 9px;border-radius:8px;cursor:pointer;white-space:nowrap;
 }
 .tab-btn.active{background:var(--green);border-color:var(--green);color:#fff;}
 
@@ -312,13 +312,14 @@ input:focus{outline:none;border-color:var(--green);}
         <span class="sub">Mustryati</span>
       </div>
     </div>
-    <div style="display:flex;gap:5px;">
-      <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')">السلة</button>
-      <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">السجل</button>
-      <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')">الروشن</button>
-      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')" style="display:none;">🛠️ إدارة</button>
-    </div>
   </header>
+  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;">
+    <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')">السلة</button>
+    <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">السجل</button>
+    <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')">الروشن</button>
+    <button class="tab-btn" id="tabReports" onclick="switchTab('reports')">📊 تقارير</button>
+    <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')" style="display:none;">🛠️ إدارة</button>
+  </div>
 
   <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
     👤 مسجّل باسم: <b id="userLabel">—</b>
@@ -338,7 +339,8 @@ input:focus{outline:none;border-color:var(--green);}
       <div class="row">
         <div class="field">
           <label>اسم المحل</label>
-          <input type="text" id="storeName" placeholder="مثال: سوبر ماركت الرحمة">
+          <input type="text" id="storeName" placeholder="مثال: سوبر ماركت الرحمة" list="storesDatalist">
+          <datalist id="storesDatalist"></datalist>
         </div>
         <div class="field">
           <label>التاريخ</label>
@@ -448,18 +450,49 @@ input:focus{outline:none;border-color:var(--green);}
 
   <!-- HISTORY TAB -->
   <div id="historyTab" style="display:none;">
-    <div class="card" style="cursor:pointer;" onclick="toggleStats()">
-      <h2 style="display:flex;align-items:center;justify-content:space-between;margin:0;">
-        <span>إحصائيات هالشهر</span>
-        <span id="statsToggleIcon" style="font-size:12px;color:var(--muted);">اضغط للعرض ▾</span>
-      </h2>
-    </div>
-    <div id="statsPanel" style="display:none;"></div>
     <div id="historyList"></div>
+  </div>
+
+  <!-- REPORTS TAB -->
+  <div id="reportsTab" style="display:none;">
+    <div class="card">
+      <h2>📅 مصروف فترة معيّنة</h2>
+      <div class="row">
+        <div class="field">
+          <label>من</label>
+          <input type="date" id="reportFromDate">
+        </div>
+        <div class="field">
+          <label>إلى</label>
+          <input type="date" id="reportToDate">
+        </div>
+      </div>
+      <button class="add-btn" onclick="calculateRangeReport()">احسب المصروف</button>
+      <div id="rangeReportResult" style="margin-top:12px;"></div>
+    </div>
+    <div class="card">
+      <h2>🏆 أكثر منتج صرفت عليه</h2>
+      <div id="topSpentProduct" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
+    </div>
+    <div class="card">
+      <h2>📊 نظرة عامة هالشهر</h2>
+      <div id="statsPanel"></div>
+    </div>
   </div>
 
   <!-- ADMIN TAB -->
   <div id="adminTab" style="display:none;">
+    <div class="card">
+      <h2>🏬 إدارة المتاجر</h2>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">أسماء المحلات هذي تظهر كاقتراح تلقائي للجميع لما يكتبون اسم المحل بالسلة.</p>
+      <div class="row">
+        <div class="field" style="margin-bottom:0;">
+          <input type="text" id="storeInput" placeholder="اسم محل جديد" onkeydown="if(event.key==='Enter') addStore()">
+        </div>
+        <button class="add-btn" style="width:auto;padding:10px 16px;margin-top:0;" onclick="addStore()">+</button>
+      </div>
+      <div id="storesList" style="margin-top:12px;">جاري التحميل...</div>
+    </div>
     <div class="card">
       <h2>📢 إعلام لكل المستخدمين</h2>
       <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">اكتب رسالة تظهر لكل المستخدمين أول ما يفتحون التطبيق (مثلاً: "حدّثنا صور بعض المنتجات، اضغط 🔄 فوق لتحديثها").</p>
@@ -597,7 +630,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v27'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v28'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -785,6 +818,7 @@ auth.onAuthStateChanged(async (user)=>{
     loadHistory();
     loadProductsCache();
     loadCurrencyPreference();
+    loadStores();
     checkAdminStatus();
     loadBroadcast();
   } else {
@@ -1456,6 +1490,7 @@ async function finishTrip(){
   try{
     await basketRef().collection('trips').doc(trip.id).set(trip);
   }catch(e){ showToast('صار خطأ بالحفظ'); return; }
+  registerStoreIfNew(trip.store);
 
   const wasEditing = !!editingTripId;
   editingTripId = null;
@@ -1476,15 +1511,18 @@ function switchTab(tab){
   document.getElementById('cartTab').style.display = tab==='cart' ? 'block' : 'none';
   document.getElementById('prepTab').style.display = tab==='prep' ? 'block' : 'none';
   document.getElementById('historyTab').style.display = tab==='history' ? 'block' : 'none';
+  document.getElementById('reportsTab').style.display = tab==='reports' ? 'block' : 'none';
   document.getElementById('adminTab').style.display = tab==='admin' ? 'block' : 'none';
   document.getElementById('summaryBar').style.display = tab==='cart' ? 'block' : 'none';
   document.getElementById('tabCart').classList.toggle('active', tab==='cart');
   document.getElementById('tabPrep').classList.toggle('active', tab==='prep');
   document.getElementById('tabHistory').classList.toggle('active', tab==='history');
+  document.getElementById('tabReports').classList.toggle('active', tab==='reports');
   document.getElementById('tabAdmin').classList.toggle('active', tab==='admin');
   if(tab==='cart'){ setTimeout(adjustBodyPadding, 0); } else { document.body.style.paddingBottom = '24px'; }
   if(tab==='prep'){ loadPrepList(); }
   if(tab==='admin'){ loadAdminPanel(); }
+  if(tab==='reports'){ renderStats(); renderTopSpentProduct(); }
 }
 
 /* ---- قائمة الروشن ---- */
@@ -1606,20 +1644,6 @@ function quickAddFromPrep(id){
 }
 
 /* ---- إحصائيات الشهر ---- */
-function toggleStats(){
-  statsVisible = !statsVisible;
-  const panel = document.getElementById('statsPanel');
-  const icon = document.getElementById('statsToggleIcon');
-  if(statsVisible){
-    renderStats();
-    panel.style.display = 'block';
-    icon.textContent = 'اضغط للإخفاء ▴';
-  } else {
-    panel.style.display = 'none';
-    icon.textContent = 'اضغط للعرض ▾';
-  }
-}
-
 function renderStats(){
   const panel = document.getElementById('statsPanel');
   const trips = Object.values(tripsCache);
@@ -1686,6 +1710,158 @@ function renderStats(){
       </div>
     </div>
   `;
+}
+
+function renderTopSpentProduct(){
+  const box = document.getElementById('topSpentProduct');
+  const trips = Object.values(tripsCache);
+  if(!trips.length){ box.innerHTML = '<p style="color:var(--muted);font-size:13px;margin:0;">ما فيه بيانات كافية بعد</p>'; return; }
+  const spendByProduct = {};
+  trips.forEach(t=>{
+    const tc = currencyByCode(t.currency);
+    (t.items||[]).forEach(i=>{
+      const key = (i.name||'').trim();
+      if(!key) return;
+      if(!spendByProduct[key]) spendByProduct[key] = {total:0, count:0, currency: tc};
+      spendByProduct[key].total += (i.price||0)*(i.qty||0);
+      spendByProduct[key].count += 1;
+    });
+  });
+  const sorted = Object.entries(spendByProduct).sort((a,b)=>b[1].total-a[1].total);
+  if(!sorted.length){ box.innerHTML = '<p style="color:var(--muted);font-size:13px;margin:0;">ما فيه بيانات كافية بعد</p>'; return; }
+  box.innerHTML = sorted.slice(0,5).map(([name, d], idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;${idx>0?'border-top:1px dotted var(--line);':''}">
+      <span style="font-weight:${idx===0?'800':'600'};font-size:${idx===0?'14px':'13px'};">${idx===0?'🏆 ':''}${escapeHtml(name)}</span>
+      <span style="font-family:'JetBrains Mono';font-weight:700;color:var(--green-dark);">${fmt(d.total, d.currency)} ${d.currency.symbol}</span>
+    </div>
+  `).join('');
+}
+
+function calculateRangeReport(){
+  const from = document.getElementById('reportFromDate').value;
+  const to = document.getElementById('reportToDate').value;
+  const box = document.getElementById('rangeReportResult');
+  if(!from || !to){ showToast('حدد تاريخ البداية والنهاية'); return; }
+  if(from > to){ showToast('تاريخ البداية لازم يكون قبل النهاية'); return; }
+  const trips = Object.values(tripsCache).filter(t=>t.date >= from && t.date <= to);
+  if(!trips.length){
+    box.innerHTML = '<p style="color:var(--muted);font-size:13px;margin:0;">ما فيه فواتير بهذي الفترة</p>';
+    return;
+  }
+  const totalsByCurrency = {};
+  trips.forEach(t=>{
+    const code = t.currency || currentCurrency.code;
+    totalsByCurrency[code] = (totalsByCurrency[code]||0) + (t.total||0);
+  });
+  const lines = Object.entries(totalsByCurrency).map(([code, total])=>{
+    const tc = currencyByCode(code);
+    return `<div style="font-family:'JetBrains Mono';font-weight:800;font-size:20px;color:var(--green-dark);">${fmt(total, tc)} ${tc.symbol}</div>`;
+  }).join('');
+  box.innerHTML = `
+    <div style="background:var(--paper-2);border-radius:10px;padding:12px;text-align:center;">
+      ${lines}
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">إجمالي ${trips.length} فاتورة بين ${from} و${to}</div>
+    </div>
+  `;
+}
+
+/* ---- إدارة المتاجر (مشتركة بين كل المستخدمين) ---- */
+let storesCache = [];
+
+async function loadStores(){
+  try{
+    const snap = await db.collection('stores').get();
+    storesCache = snap.docs.map(d=>({id:d.id, name:d.data().name}));
+    updateStoresDatalist();
+  }catch(e){ console.error(e); }
+}
+
+function updateStoresDatalist(){
+  const dl = document.getElementById('storesDatalist');
+  if(!dl) return;
+  dl.innerHTML = storesCache.map(s=>`<option value="${escapeHtml(s.name)}">`).join('');
+}
+
+async function registerStoreIfNew(name){
+  name = (name||'').trim();
+  if(!name) return;
+  if(storesCache.some(s=>s.name.trim().toLowerCase()===name.toLowerCase())) return;
+  try{
+    await db.collection('stores').doc(slugify(name)).set({name});
+    storesCache.push({id: slugify(name), name});
+    updateStoresDatalist();
+  }catch(e){ /* اختياري، نتجاهل أي خطأ */ }
+}
+
+async function loadStoresAdmin(){
+  const box = document.getElementById('storesList');
+  box.textContent = 'جاري التحميل...';
+  try{
+    const snap = await db.collection('stores').get();
+    storesCache = snap.docs.map(d=>({id:d.id, name:d.data().name}));
+    updateStoresDatalist();
+    renderStoresAdminList();
+  }catch(e){ box.textContent = 'صار خطأ بجلب المتاجر'; }
+}
+
+let editingStoreId = null;
+function renderStoresAdminList(){
+  const box = document.getElementById('storesList');
+  if(!storesCache.length){ box.innerHTML = '<div class="receipt-empty">ما فيه متاجر مضافة بعد</div>'; return; }
+  box.innerHTML = storesCache.map(s=>{
+    if(editingStoreId === s.id){
+      return `
+        <div class="bulk-row">
+          <div class="bulk-fields">
+            <input type="text" id="storeEdit-${s.id}" value="${escapeHtml(s.name)}">
+          </div>
+          <button class="edit-btn" onclick="saveStoreEdit('${s.id}')">💾</button>
+          <button class="bulk-del" onclick="editingStoreId=null; renderStoresAdminList();">✕</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="bulk-row">
+        <div class="bulk-fields">
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(s.name)}</div>
+        </div>
+        <button class="edit-btn" onclick="editingStoreId='${s.id}'; renderStoresAdminList();">✏️</button>
+        <button class="bulk-del" onclick="deleteStore('${s.id}')">🗑</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function addStore(){
+  const input = document.getElementById('storeInput');
+  const name = input.value.trim();
+  if(!name) return;
+  try{
+    await db.collection('stores').doc(slugify(name)).set({name});
+    input.value = '';
+    showToast('تمت الإضافة ✔');
+    loadStoresAdmin();
+  }catch(e){ console.error(e); showToast('صار خطأ بالإضافة'); }
+}
+
+async function saveStoreEdit(id){
+  const newName = document.getElementById('storeEdit-'+id).value.trim();
+  if(!newName){ showToast('اكتب اسم صحيح'); return; }
+  try{
+    await db.collection('stores').doc(id).set({name: newName}, {merge:true});
+    editingStoreId = null;
+    showToast('تم الحفظ ✔');
+    loadStoresAdmin();
+  }catch(e){ console.error(e); showToast('صار خطأ بالحفظ — تأكد قواعد الأمان تسمح للأدمن'); }
+}
+
+async function deleteStore(id){
+  if(!confirm('متأكد تبي تحذف هذا المحل من القائمة المشتركة؟')) return;
+  try{
+    await db.collection('stores').doc(id).delete();
+    showToast('تم الحذف');
+    loadStoresAdmin();
+  }catch(e){ console.error(e); showToast('صار خطأ بالحذف — تأكد قواعد الأمان تسمح للأدمن'); }
 }
 
 /* ---- لوحة الإدارة ---- */
@@ -1849,6 +2025,7 @@ async function loadAdminPanel(){
   document.getElementById('adminUsersList').textContent = 'جاري التحميل...';
   renderBulkImageRows();
   loadProductMgmtList();
+  loadStoresAdmin();
   try{
     const usersSnap = await db.collection('baskets').get();
     adminUsersCache = usersSnap.docs.map(d=>({uid:d.id, ...d.data()}));
