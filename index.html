@@ -297,6 +297,7 @@ input:focus{outline:none;border-color:var(--green);}
       <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')">السلة</button>
       <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">السجل</button>
       <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')">الروشن</button>
+      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')" style="display:none;">🛠️ إدارة</button>
     </div>
   </header>
 
@@ -420,6 +421,21 @@ input:focus{outline:none;border-color:var(--green);}
     <div id="statsPanel" style="display:none;"></div>
     <div id="historyList"></div>
   </div>
+
+  <!-- ADMIN TAB -->
+  <div id="adminTab" style="display:none;">
+    <div class="card">
+      <h2>إحصائيات عامة</h2>
+      <div id="adminStats" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <h2 style="margin:0;">كل المستخدمين</h2>
+        <input type="text" id="adminSearch" placeholder="بحث باسم المستخدم" oninput="renderAdminUsers()" style="max-width:150px;padding:6px 10px;font-size:12px;">
+      </div>
+      <div id="adminUsersList">جاري التحميل...</div>
+    </div>
+  </div>
 </div>
 
 <!-- Sticky summary (cart tab only) -->
@@ -512,7 +528,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v16'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v17'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -546,6 +562,8 @@ let refPriceInfo = null;
 let scanStream = null;
 let detectorTimer = null;
 let currentUser = null;
+let isAdminUser = false;
+let adminUsersCache = [];
 let productsCache = [];
 let editingItemId = null;
 let editingTripId = null;
@@ -660,6 +678,28 @@ function logOut(){
 auth.onAuthStateChanged(async (user)=>{
   currentUser = user;
   if(user){
+    // تحقق إذا الحساب موقوف من الإدارة قبل ما نكمل
+    let basketData = null;
+    try{
+      const doc = await basketRef().get();
+      basketData = doc.exists ? doc.data() : null;
+    }catch(e){}
+    if(basketData && basketData.suspended){
+      showToast('حسابك موقوف من الإدارة. تواصل معهم لمزيد من التفاصيل.');
+      currentUser = null;
+      await auth.signOut();
+      return;
+    }
+    // نسجل اسم المستخدم وتاريخ التسجيل أول مرة (يفيد لوحة الإدارة)
+    if(!basketData || !basketData.username || !basketData.createdAt){
+      try{
+        await basketRef().set({
+          username: user.displayName || (user.email||'').split('@')[0],
+          createdAt: basketData && basketData.createdAt ? basketData.createdAt : new Date().toISOString()
+        }, {merge:true});
+      }catch(e){}
+    }
+
     document.getElementById('authModal').classList.remove('open');
     document.getElementById('userLabel').textContent = user.displayName || (user.email||'').split('@')[0];
     document.getElementById('authUsername').value = '';
@@ -668,7 +708,10 @@ auth.onAuthStateChanged(async (user)=>{
     loadHistory();
     loadProductsCache();
     loadCurrencyPreference();
+    checkAdminStatus();
   } else {
+    isAdminUser = false;
+    document.getElementById('tabAdmin').style.display = 'none';
     document.getElementById('authFormScreen').style.display = 'none';
     document.getElementById('authChoiceScreen').style.display = 'block';
     clearAuthMsg();
@@ -1263,12 +1306,15 @@ function switchTab(tab){
   document.getElementById('cartTab').style.display = tab==='cart' ? 'block' : 'none';
   document.getElementById('prepTab').style.display = tab==='prep' ? 'block' : 'none';
   document.getElementById('historyTab').style.display = tab==='history' ? 'block' : 'none';
+  document.getElementById('adminTab').style.display = tab==='admin' ? 'block' : 'none';
   document.getElementById('summaryBar').style.display = tab==='cart' ? 'block' : 'none';
   document.getElementById('tabCart').classList.toggle('active', tab==='cart');
   document.getElementById('tabPrep').classList.toggle('active', tab==='prep');
   document.getElementById('tabHistory').classList.toggle('active', tab==='history');
+  document.getElementById('tabAdmin').classList.toggle('active', tab==='admin');
   if(tab==='cart'){ setTimeout(adjustBodyPadding, 0); } else { document.body.style.paddingBottom = '24px'; }
   if(tab==='prep'){ loadPrepList(); }
+  if(tab==='admin'){ loadAdminPanel(); }
 }
 
 /* ---- قائمة الروشن ---- */
@@ -1422,6 +1468,114 @@ function renderStats(){
       </div>
     </div>
   `;
+}
+
+/* ---- لوحة الإدارة ---- */
+async function checkAdminStatus(){
+  if(!currentUser) return;
+  try{
+    const doc = await db.collection('admins').doc(currentUser.uid).get();
+    isAdminUser = doc.exists;
+    document.getElementById('tabAdmin').style.display = isAdminUser ? 'inline-block' : 'none';
+  }catch(e){ isAdminUser = false; }
+}
+
+async function deleteCollectionDocs(colRef){
+  const snap = await colRef.get();
+  if(snap.empty) return;
+  const batch = db.batch();
+  snap.docs.forEach(d=>batch.delete(d.ref));
+  await batch.commit();
+}
+
+async function loadAdminPanel(){
+  if(!isAdminUser){ showToast('ما عندك صلاحية إدارة'); switchTab('cart'); return; }
+  document.getElementById('adminStats').textContent = 'جاري التحميل...';
+  document.getElementById('adminUsersList').textContent = 'جاري التحميل...';
+  try{
+    const usersSnap = await db.collection('baskets').get();
+    adminUsersCache = usersSnap.docs.map(d=>({uid:d.id, ...d.data()}));
+
+    let totalTrips = 0;
+    try{
+      const tripsSnap = await db.collectionGroup('trips').get();
+      totalTrips = tripsSnap.size;
+    }catch(e){ /* لو ما فيه فهرس (index) مفعّل للـ collection group، نتجاهل ونعرض 0 */ }
+
+    document.getElementById('adminStats').innerHTML = `
+      <div class="row">
+        <div style="flex:1;background:var(--paper-2);border-radius:10px;padding:10px;text-align:center;">
+          <div style="font-family:'JetBrains Mono';font-weight:800;font-size:18px;color:var(--green-dark);">${adminUsersCache.length}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">إجمالي المستخدمين</div>
+        </div>
+        <div style="flex:1;background:var(--paper-2);border-radius:10px;padding:10px;text-align:center;">
+          <div style="font-family:'JetBrains Mono';font-weight:800;font-size:18px;color:var(--green-dark);">${totalTrips}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">إجمالي الفواتير</div>
+        </div>
+      </div>
+    `;
+    renderAdminUsers();
+  }catch(e){
+    console.error(e);
+    document.getElementById('adminStats').textContent = 'صار خطأ بجلب البيانات — تأكد من قواعد الأمان';
+    document.getElementById('adminUsersList').textContent = '';
+  }
+}
+
+function renderAdminUsers(){
+  const q = document.getElementById('adminSearch').value.trim().toLowerCase();
+  const list = adminUsersCache.filter(u=> !q || (u.username||'').toLowerCase().includes(q));
+  const box = document.getElementById('adminUsersList');
+  if(!list.length){ box.innerHTML = '<div class="receipt-empty">ما فيه نتائج</div>'; return; }
+  box.innerHTML = list.map(u=>`
+    <div class="trip-card" style="cursor:default;">
+      <div class="trip-head">
+        <div>
+          <div class="trip-store">${escapeHtml(u.username||'—')} ${u.suspended?'<span style="color:var(--red);font-size:11px;">(موقوف)</span>':''}</div>
+          <div class="trip-date">${u.uid}</div>
+        </div>
+      </div>
+      <div class="trip-actions">
+        ${u.suspended
+          ? `<button onclick="toggleSuspend('${u.uid}', false)">▶️ تفعيل</button>`
+          : `<button onclick="toggleSuspend('${u.uid}', true)">⏸ إيقاف</button>`}
+        <button onclick="resetUserData('${u.uid}')">🔄 تصفير البيانات</button>
+        <button class="danger" onclick="deleteUserCompletely('${u.uid}')">🗑 حذف نهائي</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleSuspend(uid, suspend){
+  if(uid === currentUser.uid){ showToast('ما تقدر توقف حسابك أنت'); return; }
+  try{
+    await db.collection('baskets').doc(uid).set({suspended: suspend}, {merge:true});
+    showToast(suspend ? 'تم إيقاف الحساب' : 'تم تفعيل الحساب');
+    loadAdminPanel();
+  }catch(e){ showToast('صار خطأ'); }
+}
+
+async function resetUserData(uid){
+  if(!confirm('متأكد تبي تصفّر بيانات هذا المستخدم؟ راح تنمسح كل فواتيره ومنتجاته، بس حسابه يضل شغال.')) return;
+  try{
+    await deleteCollectionDocs(db.collection('baskets').doc(uid).collection('trips'));
+    await deleteCollectionDocs(db.collection('baskets').doc(uid).collection('products'));
+    await db.collection('baskets').doc(uid).set({draft: null, prepList: []}, {merge:true});
+    showToast('تم تصفير بيانات المستخدم');
+    loadAdminPanel();
+  }catch(e){ console.error(e); showToast('صار خطأ بالتصفير'); }
+}
+
+async function deleteUserCompletely(uid){
+  if(uid === currentUser.uid){ showToast('ما تقدر تحذف حسابك أنت'); return; }
+  if(!confirm('متأكد تبي تحذف هذا المستخدم نهائياً؟ بيانات كل فواتيره ومنتجاته بتنمسح بلا رجعة.\n\n(ملاحظة: اسم المستخدم/كلمة السر بنظام الدخول تضل موجودة تقنياً، بس بيانات التطبيق تنمسح بالكامل)')) return;
+  try{
+    await deleteCollectionDocs(db.collection('baskets').doc(uid).collection('trips'));
+    await deleteCollectionDocs(db.collection('baskets').doc(uid).collection('products'));
+    await db.collection('baskets').doc(uid).delete();
+    showToast('تم حذف بيانات المستخدم نهائياً');
+    loadAdminPanel();
+  }catch(e){ console.error(e); showToast('صار خطأ بالحذف'); }
 }
 
 async function loadHistory(){
