@@ -243,6 +243,15 @@ input:focus{outline:none;border-color:var(--green);}
 .img-upload-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 
 .bulk-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line);}
+
+.gallery-card{
+  border:1.5px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;
+  display:flex;flex-direction:column;align-items:center;text-align:center;padding-bottom:5px;
+}
+.gallery-card:active{transform:scale(.96);}
+.gallery-card img{width:100%;aspect-ratio:1;object-fit:cover;}
+.gallery-card .gname{font-size:10.5px;font-weight:600;padding:3px 4px 0;line-height:1.2;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .bulk-row .bulk-thumb{
   width:48px;height:48px;border-radius:9px;border:1.5px dashed var(--line);background:var(--paper-2);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden;
@@ -405,9 +414,16 @@ input:focus{outline:none;border-color:var(--green);}
     <div class="card">
       <h2>قائمة الروشن</h2>
       <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">جهّزها من البيت قبل لا تروح السوق، وعلّم على كل شي أول ما تحطه بالسلة.</p>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;">🖼️ اختيار سريع بالصور</label>
+        <input type="text" id="prepGallerySearch" placeholder="دوّر بالصور..." oninput="renderPrepGallery()" style="margin-bottom:8px;">
+        <div id="prepGallery" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:220px;overflow-y:auto;padding-bottom:4px;"></div>
+      </div>
+
       <div class="row">
         <div class="field" style="margin-bottom:0;">
-          <input type="text" id="prepItemInput" placeholder="اسم المنتج (مثال: حليب)" onkeydown="if(event.key==='Enter') addPrepItem()">
+          <input type="text" id="prepItemInput" placeholder="مو موجود؟ اكتب اسم المنتج يدوياً" onkeydown="if(event.key==='Enter') addPrepItem()">
         </div>
         <button class="add-btn" style="width:auto;padding:10px 16px;margin-top:0;" onclick="addPrepItem()">+</button>
       </div>
@@ -547,7 +563,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v20'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v21'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -924,7 +940,7 @@ async function mergeGlobalProducts(){
       const key = (g.name||'').trim().toLowerCase();
       if(key && !known.has(key)){
         known.add(key);
-        productsCache.push({name:g.name, unit:g.unit||'piece', barcode:doc.id, image:g.image||''}); // بدون سعر — مشترك بس بالاسم والصورة
+        productsCache.push({name:g.name, unit:g.unit||'piece', barcode:g.barcode||'', image:g.image||''}); // بدون سعر — مشترك بس بالاسم والصورة
       }
     });
   }catch(e){ console.error(e); }
@@ -1214,7 +1230,7 @@ async function addItem(){
   // شارك الاسم والوحدة والصورة بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
   if(barcode){
     try{
-      await globalProductRef(barcode).set({name, unit, image: currentImageDataUrl||''}, {merge:true});
+      await globalProductRef(barcode).set({name, unit, barcode, image: currentImageDataUrl||''}, {merge:true});
     }catch(e){
       // لو الاسم يختلف عن التسجيل العام لنفس الباركود، قواعد الأمان ترفض التحديث — نتجاهلها بهدوء
     }
@@ -1402,6 +1418,41 @@ async function loadPrepList(){
     prepListCache = (doc.exists && doc.data().prepList) || [];
   }catch(e){ prepListCache = []; }
   renderPrepList();
+  renderPrepGallery();
+}
+
+function renderPrepGallery(){
+  const box = document.getElementById('prepGallery');
+  if(!box) return;
+  const q = (document.getElementById('prepGallerySearch').value || '').trim().toLowerCase();
+  const withImages = productsCache.filter(p=>p.image && (!q || p.name.toLowerCase().includes(q)));
+  // شيل التكرار (لو نفس الاسم موجود بأكثر من مصدر)
+  const seen = new Set();
+  const unique = [];
+  withImages.forEach(p=>{
+    const key = p.name.trim().toLowerCase();
+    if(!seen.has(key)){ seen.add(key); unique.push(p); }
+  });
+  if(!unique.length){
+    box.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:14px 0;">ما فيه صور منتجات محفوظة بعد — أضف منتج بصورة من تبويب السلة وبيطلع هنا</div>';
+    return;
+  }
+  box.innerHTML = unique.slice(0,60).map(p=>`
+    <div class="gallery-card" onclick="quickAddToPrepFromGallery('${p.name.replace(/'/g,"\\'")}')">
+      <img src="${p.image}">
+      <div class="gname">${escapeHtml(p.name)}</div>
+    </div>
+  `).join('');
+}
+
+function quickAddToPrepFromGallery(name){
+  if(prepListCache.some(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase())){
+    showToast('موجود بقائمتك أصلاً');
+    return;
+  }
+  prepListCache.push({id: uid(), name, checked:false});
+  renderPrepList(); savePrepList();
+  showToast('تمت الإضافة للروشن ✔');
 }
 
 function renderPrepList(){
@@ -1625,7 +1676,7 @@ async function uploadBulkImages(){
     const barcode = r.barcode.trim();
     const productId = barcode || slugify(r.name.trim());
     try{
-      await globalProductRef(productId).set({name: r.name.trim(), unit:'piece', image: r.preview}, {merge:true});
+      await globalProductRef(productId).set({name: r.name.trim(), unit:'piece', barcode: barcode||'', image: r.preview}, {merge:true});
       done++;
     }catch(e){
       failed++;
