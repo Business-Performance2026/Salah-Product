@@ -252,6 +252,16 @@ input:focus{outline:none;border-color:var(--green);}
 .gallery-card img{width:100%;aspect-ratio:1;object-fit:cover;}
 .gallery-card .gname{font-size:10.5px;font-weight:600;padding:3px 4px 0;line-height:1.2;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+.prep-card{
+  background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;
+  box-shadow:0 2px 6px rgba(36,48,42,.04);
+}
+.prep-card.checked{background:var(--paper-2);border-color:transparent;}
+.prep-card-top{display:flex;align-items:center;gap:8px;}
+.prep-card-fields{display:flex;align-items:center;gap:6px;margin-top:8px;}
+.prep-card-fields input[type="number"]{padding:5px 2px;text-align:center;font-size:12px;}
+.prep-card select{width:100%;margin-top:8px;padding:6px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);}
 .bulk-row .bulk-thumb{
   width:48px;height:48px;border-radius:9px;border:1.5px dashed var(--line);background:var(--paper-2);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;overflow:hidden;
@@ -640,7 +650,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v36'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v37'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -687,7 +697,7 @@ const CATEGORIES = [
   { id:'canned', ar:'🥫 معلبات وحبوب', en:'🥫 Canned & Grains', keywords:['تونة معلبة','فول معلب','حمص معلب','ذرة معلبة','عدس','فاصوليا','حمص جاف','شوفان','كورن فليكس','معلب'] },
   { id:'rice_pasta', ar:'🍚 أرز ومعكرونة', en:'🍚 Rice & Pasta', keywords:['أرز','رز','معكرونة','سباغيتي','شعيرية','فريكة','برغل'] },
   { id:'spices', ar:'🧂 توابل وصلصات', en:'🧂 Spices & Sauces', keywords:['ملح','فلفل أسود','كمون','كركم','بهارات','صلصة','كاتشب','مايونيز','خردل','صويا','خل','زيت','سكر','عسل','طحينة'] },
-  { id:'beverages', ar:'🥤 مشروبات', en:'🥤 Beverages', keywords:['ماء','مياه','عصير','كولا','غازي','سفن أب','شاي','قهوة','نسكافيه','طاقة','مشروب'] },
+  { id:'beverages', ar:'🥤 مشروبات', en:'🥤 Beverages', keywords:['ماء','مياه','عصير','كولا','غازي','سفن أب','شاي','قهوة','نسكافيه','طاقة','مشروب','فيمتو','ببسي','ريفريش','تانج','رديبول','ريدبول','فانتا','سبرايت'] },
   { id:'snacks', ar:'🍫 وجبات خفيفة', en:'🍫 Snacks', keywords:['شيبس','مكسرات','شوكولاتة','شوكلاتة','بسكويت محلى','حلاوة','فشار','رقائق'] },
   { id:'frozen', ar:'🧊 تجميد', en:'🧊 Frozen', keywords:['مجمد','مجمدة','سمبوسة','بيتزا','فطائر مجمدة'] },
   { id:'cleaning', ar:'🧽 منظفات', en:'🧽 Cleaning', keywords:['مسحوق غسيل','سائل غسيل','معطر','مطهر','مناديل ورقية','ورق تواليت','أكياس قمامة','منظف','صابون سائل','مبيض','كلور'] },
@@ -698,10 +708,27 @@ const CATEGORIES = [
 function guessCategory(name){
   const n = (name||'').trim().toLowerCase();
   if(!n) return 'uncategorized';
+  const words = n.split(/\s+/);
+
+  // نتأكد من الكلمات المركّبة (فيها مسافة) أول شي — لازم تكون موجودة كعبارة كاملة
   for(const cat of CATEGORIES){
     if(cat.id === 'uncategorized') continue;
     for(const kw of cat.keywords){
-      if(n.includes(kw.toLowerCase())) return cat.id;
+      const kwLower = kw.toLowerCase();
+      if(kwLower.includes(' ') && n.includes(kwLower)) return cat.id;
+    }
+  }
+
+  // بعدين نفحص كلمة كلمة من الاسم بالترتيب (الكلمة الأولى غالباً أهم من وصف النكهة اللي بعدها،
+  // زي "فيمتو مانجو" — الأولوية لـ"فيمتو" (مشروبات) مو "مانجو" (فواكه))
+  for(const w of words){
+    for(const cat of CATEGORIES){
+      if(cat.id === 'uncategorized') continue;
+      for(const kw of cat.keywords){
+        const kwLower = kw.toLowerCase();
+        if(kwLower.includes(' ')) continue; // تعاملنا معها فوق
+        if(w === kwLower || w.startsWith(kwLower)) return cat.id;
+      }
     }
   }
   return 'uncategorized';
@@ -1775,76 +1802,23 @@ async function loadPrepList(){
   renderPrepGallery();
 }
 
-let selectedGalleryCategory = null;
-
-function getUniqueProductsWithImages(){
-  const withImages = productsCache.filter(p=>p.image);
+function renderPrepGallery(){
+  const box = document.getElementById('prepGallery');
+  if(!box) return;
+  const q = (document.getElementById('prepGallerySearch').value || '').trim().toLowerCase();
+  const withImages = productsCache.filter(p=>p.image && (!q || p.name.toLowerCase().includes(q)));
   const seen = new Set();
   const unique = [];
   withImages.forEach(p=>{
     const key = p.name.trim().toLowerCase();
     if(!seen.has(key)){ seen.add(key); unique.push(p); }
   });
-  return unique;
-}
-
-function renderPrepGallery(){
-  const box = document.getElementById('prepGallery');
-  if(!box) return;
-  const q = (document.getElementById('prepGallerySearch').value || '').trim().toLowerCase();
-  const unique = getUniqueProductsWithImages();
-
+  box.style.gridTemplateColumns = 'repeat(3,1fr)';
   if(!unique.length){
     box.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:14px 0;">${t('noSavedImages')}</div>`;
     return;
   }
-
-  // بحث نصي: يطلع نتائج مباشرة من كل الفئات، يتجاوز البطاقات
-  if(q){
-    const results = unique.filter(p=>p.name.toLowerCase().includes(q));
-    box.style.gridTemplateColumns = 'repeat(3,1fr)';
-    if(!results.length){
-      box.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:14px 0;">${t('noResults')}</div>`;
-      return;
-    }
-    box.innerHTML = results.slice(0,60).map(p=>`
-      <div class="gallery-card" onclick="quickAddToPrepFromGallery('${p.name.replace(/'/g,"\\'")}')">
-        <img src="${p.image}">
-        <div class="gname">${escapeHtml(trName(p.name))}</div>
-      </div>
-    `).join('');
-    return;
-  }
-
-  // ما فيه بحث: لو ما اخترنا فئة، نعرض بطاقات الفئات
-  if(!selectedGalleryCategory){
-    box.style.gridTemplateColumns = 'repeat(2,1fr)';
-    const counts = {};
-    unique.forEach(p=>{
-      const cat = p.category || guessCategory(p.name) || 'uncategorized';
-      counts[cat] = (counts[cat]||0)+1;
-    });
-    const catsWithItems = CATEGORIES.filter(c=>counts[c.id] > 0);
-    box.innerHTML = catsWithItems.map(c=>`
-      <div class="gallery-card" style="aspect-ratio:auto;padding:12px 6px;cursor:pointer;" onclick="selectedGalleryCategory='${c.id}'; renderPrepGallery();">
-        <div style="font-size:26px;margin-bottom:4px;">${(currentLang==='en'?c.en:c.ar).split(' ')[0]}</div>
-        <div class="gname">${(currentLang==='en'?c.en:c.ar).replace(/^\S+\s/,'')}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${counts[c.id]}</div>
-      </div>
-    `).join('');
-    return;
-  }
-
-  // فتحنا فئة معينة: نعرض منتجاتها بس
-  box.style.gridTemplateColumns = 'repeat(3,1fr)';
-  const catInfo = CATEGORIES.find(c=>c.id===selectedGalleryCategory);
-  const catProducts = unique.filter(p=>(p.category || guessCategory(p.name) || 'uncategorized') === selectedGalleryCategory);
-  const backCard = `
-    <div class="gallery-card" style="aspect-ratio:auto;padding:14px 4px;cursor:pointer;background:var(--paper-2);" onclick="selectedGalleryCategory=null; renderPrepGallery();">
-      <div style="font-size:20px;">${currentLang==='en' ? '← Back' : '→ رجوع'}</div>
-      <div class="gname" style="margin-top:4px;">${catInfo ? (currentLang==='en'?catInfo.en:catInfo.ar) : ''}</div>
-    </div>`;
-  box.innerHTML = backCard + catProducts.map(p=>`
+  box.innerHTML = unique.slice(0,60).map(p=>`
     <div class="gallery-card" onclick="quickAddToPrepFromGallery('${p.name.replace(/'/g,"\\'")}')">
       <img src="${p.image}">
       <div class="gname">${escapeHtml(trName(p.name))}</div>
@@ -1886,18 +1860,21 @@ function renderPrepList(){
   CATEGORIES.forEach(cat=>{
     const items = groups[cat.id];
     if(!items || !items.length) return;
-    html += `<div style="font-family:'Tajawal';font-weight:800;font-size:13px;color:var(--green-dark);margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--paper-2);">${currentLang==='en'?cat.en:cat.ar} <span style="font-weight:600;color:var(--muted);font-size:11px;">(${items.length})</span></div>`;
+    html += `<div style="font-family:'Tajawal';font-weight:800;font-size:13px;color:var(--green-dark);margin:14px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--paper-2);">${currentLang==='en'?cat.en:cat.ar} <span style="font-weight:600;color:var(--muted);font-size:11px;">(${items.length})</span></div>`;
     html += items.map(p=>`
-      <div class="receipt-line" style="flex-wrap:wrap;">
-        <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green);">
-        ${p.image ? `<img class="thumb" src="${p.image}">` : ''}
-        <span class="name" style="${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(trName(p.name))}</span>
-        <span class="dots"></span>
-        <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:40px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;" title="${t('qtyLabel')}">
-        <input type="number" value="${p.price!=null && p.price!=='' ? p.price : ''}" placeholder="${t('priceLabelPiece')}" min="0" step="0.001" onchange="updatePrepField('${p.id}','price',this.value)" style="width:60px;padding:4px 2px;text-align:center;font-size:12px;flex-shrink:0;background:var(--paper-2);border-radius:8px;" title="${t('priceLabelPiece')}">
-        <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
-        <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
-        <select onchange="setPrepItemCategory('${p.id}', this.value)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);">
+      <div class="prep-card ${p.checked?'checked':''}">
+        <div class="prep-card-top">
+          <input type="checkbox" ${p.checked?'checked':''} onchange="togglePrepItem('${p.id}')" style="width:19px;height:19px;flex-shrink:0;accent-color:var(--green);">
+          ${p.image ? `<img class="thumb" src="${p.image}" style="width:38px;height:38px;border-radius:8px;">` : ''}
+          <span class="name" style="flex:1;font-weight:700;font-size:13.5px;${p.checked?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(trName(p.name))}</span>
+          <button class="del" onclick="deletePrepItem('${p.id}')">✕</button>
+        </div>
+        <div class="prep-card-fields">
+          <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;" title="${t('qtyLabel')}">
+          <input type="number" value="${p.price!=null && p.price!=='' ? p.price : ''}" placeholder="${t('priceLabelPiece')}" min="0" step="0.001" onchange="updatePrepField('${p.id}','price',this.value)" style="flex:1;background:var(--paper-2);border-radius:8px;" title="${t('priceLabelPiece')}">
+          <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
+        </div>
+        <select onchange="setPrepItemCategory('${p.id}', this.value)">
           ${CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===(p.category||'uncategorized')?'selected':''}>${currentLang==='en'?c.en:c.ar}</option>`).join('')}
         </select>
       </div>
