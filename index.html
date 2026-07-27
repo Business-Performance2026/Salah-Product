@@ -528,7 +528,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v17'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v18'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -640,6 +640,13 @@ async function signUp(){
   try{
     const cred = await auth.createUserWithEmailAndPassword(toFakeEmail(username), password);
     await cred.user.updateProfile({displayName: username});
+    // نكتب اسم المستخدم مباشرة (بدون انتظار onAuthStateChanged) عشان يظهر فوراً بلوحة الإدارة
+    try{
+      await db.collection('baskets').doc(cred.user.uid).set({
+        username: username,
+        createdAt: new Date().toISOString()
+      }, {merge:true});
+    }catch(e2){}
     // onAuthStateChanged بيكمل الباقي تلقائياً
   }catch(e){
     if(e.code === 'auth/email-already-in-use'){
