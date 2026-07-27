@@ -244,11 +244,6 @@ input:focus{outline:none;border-color:var(--green);}
 
 .bulk-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line);}
 
-.receipt-row{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px dotted var(--line);}
-.receipt-row input[type="text"]{flex:1;padding:6px 8px;font-size:12.5px;}
-.receipt-row input[type="number"]{width:70px;padding:6px 4px;font-size:12.5px;text-align:center;flex-shrink:0;}
-.receipt-row input[type="checkbox"]{width:17px;height:17px;flex-shrink:0;accent-color:var(--green);}
-
 .gallery-card{
   border:1.5px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;
   display:flex;flex-direction:column;align-items:center;text-align:center;padding-bottom:5px;
@@ -305,7 +300,6 @@ input:focus{outline:none;border-color:var(--green);}
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-functions-compat.js"></script>
 <!-- PDF export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -343,10 +337,6 @@ input:focus{outline:none;border-color:var(--green);}
 
   <!-- CART TAB -->
   <div id="cartTab">
-    <div class="card" style="background:linear-gradient(135deg, var(--green), var(--amber));border:none;">
-      <button onclick="openReceiptScanner()" style="width:100%;background:rgba(255,255,255,.92);color:var(--green-dark);font-family:'Tajawal';font-weight:800;font-size:14.5px;padding:12px;border:none;border-radius:10px;cursor:pointer;" data-i18n="scanReceiptBtn">📸 امسح فاتورة كاملة</button>
-    </div>
-
     <div class="card">
       <h2 data-i18n="shopInfo">معلومات التسوق</h2>
       <div class="row">
@@ -644,45 +634,12 @@ input:focus{outline:none;border-color:var(--green);}
   </div>
 </div>
 
-<!-- Receipt scanner modal -->
-<div class="modal-bg" id="receiptModal">
-  <div class="modal" style="position:relative;max-height:88vh;overflow-y:auto;text-align:right;">
-    <button onclick="closeReceiptScanner()" style="position:absolute;top:10px;left:10px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px;">✕</button>
-    <h2 style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 10px;" data-i18n="scanReceiptTitle">📸 مسح فاتورة</h2>
-
-    <div id="receiptUploadStep">
-      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;" data-i18n="scanReceiptDesc">صوّر الفاتورة أو ارفع صورتها، وراجع النتيجة قبل ما تضيفها — القراءة الآلية مو دقيقة 100% دايماً.</p>
-      <div style="display:flex;gap:8px;">
-        <button class="unit-btn" style="flex:1;" onclick="document.getElementById('receiptCamera').click()" data-i18n="camera">📷 كاميرا</button>
-        <button class="unit-btn" style="flex:1;" onclick="document.getElementById('receiptGallery').click()" data-i18n="gallery">🖼️ معرض الصور</button>
-      </div>
-      <input type="file" id="receiptCamera" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptImage(event)">
-      <input type="file" id="receiptGallery" accept="image/*" style="display:none" onchange="handleReceiptImage(event)">
-    </div>
-
-    <div id="receiptLoadingStep" style="display:none;text-align:center;padding:24px 0;">
-      <div style="font-size:34px;margin-bottom:8px;">🔎</div>
-      <div id="receiptLoadingText" style="font-size:13px;color:var(--muted);" data-i18n="scanningText">جاري تحليل الفاتورة...</div>
-      <div style="background:var(--paper-2);border-radius:99px;height:8px;overflow:hidden;margin-top:12px;">
-        <div id="receiptProgressBar" style="height:100%;width:0%;background:var(--green);transition:width .2s;"></div>
-      </div>
-    </div>
-
-    <div id="receiptReviewStep" style="display:none;">
-      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;" data-i18n="reviewInstructions">راجع وعدّل كل سطر قبل ما تضيفه — احذف أي سطر غلط.</p>
-      <div id="receiptResultsList"></div>
-      <button class="add-btn" style="margin-top:12px;" onclick="addSelectedReceiptItems()" data-i18n="addSelectedBtn">➕ أضف المحدد للسلة</button>
-      <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="resetReceiptScanner()" data-i18n="scanAnother">📸 امسح فاتورة ثانية</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v33'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v34'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -708,7 +665,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
-const cloudFunctions = firebase.functions();
 const FAKE_EMAIL_DOMAIN = 'mustryati-users.app';
 /* ===================================================== */
 
@@ -958,13 +914,6 @@ const I18N = {
     prepListEmptyForCompare:'قائمة الروشن فاضية — أضف منتجات فيها أول من تبويب "الروشن"',
     noCompareData:'ما فيه بيانات كافية — لازم تكون اشتريت منتج واحد على الأقل من قائمة الروشن قبل كذا',
     itemsKnown:'منتج معروف', compareFootnote:'* المقارنة على آخر سعر معروف لكل منتج بكل محل، بعملتك الحالية',
-    scanReceiptBtn:'📸 امسح فاتورة كاملة', scanReceiptTitle:'📸 مسح فاتورة',
-    scanReceiptDesc:'صوّر الفاتورة أو ارفع صورتها، وراجع النتيجة قبل ما تضيفها — القراءة الآلية مو دقيقة 100% دايماً.',
-    scanningText:'جاري تحليل الفاتورة...', reviewInstructions:'راجع وعدّل كل سطر قبل ما تضيفه — احذف أي سطر غلط.',
-    addSelectedBtn:'➕ أضف المحدد للسلة', scanAnother:'📸 امسح فاتورة ثانية',
-    noLinesFound:'ما لقينا أي منتج بالصورة — جرب صورة أوضح أو أضف يدوياً',
-    scanFailed:'صار خطأ بتحليل الصورة، جرب مرة ثانية', selectAtLeastOne:'حدد سطر واحد على الأقل',
-    addedCount:'تم إضافة',
     editBtn:'✏️ تعديل', shareBtn:'📤 مشاركة PDF', deleteBtn:'🗑 حذف',
     overview:'📊 نظرة عامة هالشهر', totalMonth:'إجمالي هالشهر', shoppingTimes:'عدد مرات التسوق',
     topBought:'الأكثر شراءً', topStore:'أكثر محل', last6months:'آخر 6 أشهر', noStatsData:'ما فيه بيانات كافية بعد',
@@ -1003,13 +952,6 @@ const I18N = {
     prepListEmptyForCompare:'Your To-Buy list is empty — add products there first from the "To-Buy List" tab',
     noCompareData:'Not enough data — you need to have bought at least one item from your To-Buy List before',
     itemsKnown:'items known', compareFootnote:'* Comparison based on the last known price of each item per store, in your current currency',
-    scanReceiptBtn:'📸 Scan Full Receipt', scanReceiptTitle:'📸 Scan Receipt',
-    scanReceiptDesc:'Take a photo of the receipt or upload one, and review the result before adding it — automatic reading isn\'t always 100% accurate.',
-    scanningText:'Analyzing receipt...', reviewInstructions:'Review and edit each line before adding — delete any wrong line.',
-    addSelectedBtn:'➕ Add Selected to Cart', scanAnother:'📸 Scan Another Receipt',
-    noLinesFound:'Couldn\'t find any products in the image — try a clearer photo or add manually',
-    scanFailed:'Something went wrong analyzing the image, try again', selectAtLeastOne:'Select at least one line',
-    addedCount:'Added',
     editBtn:'✏️ Edit', shareBtn:'📤 Share PDF', deleteBtn:'🗑 Delete',
     overview:'📊 This Month Overview', totalMonth:'Total This Month', shoppingTimes:'Shopping Trips',
     topBought:'Most Bought', topStore:'Top Store', last6months:'Last 6 Months', noStatsData:'Not enough data yet',
@@ -1367,112 +1309,6 @@ function compressImageFile(file, maxDim, quality){
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-/* ---- مسح الفاتورة بالكاميرا (OCR) ---- */
-let receiptRows = [];
-
-function openReceiptScanner(){
-  resetReceiptScanner();
-  document.getElementById('receiptModal').classList.add('open');
-}
-function closeReceiptScanner(){
-  document.getElementById('receiptModal').classList.remove('open');
-}
-function resetReceiptScanner(){
-  receiptRows = [];
-  document.getElementById('receiptUploadStep').style.display = 'block';
-  document.getElementById('receiptLoadingStep').style.display = 'none';
-  document.getElementById('receiptReviewStep').style.display = 'none';
-  document.getElementById('receiptProgressBar').style.width = '0%';
-}
-
-async function handleReceiptImage(e){
-  const file = e.target.files && e.target.files[0];
-  if(!file) return;
-  e.target.value = '';
-
-  document.getElementById('receiptUploadStep').style.display = 'none';
-  document.getElementById('receiptLoadingStep').style.display = 'block';
-  document.getElementById('receiptLoadingText').textContent = t('scanningText');
-
-  // شريط تقدم تقريبي (ما عندنا نسبة حقيقية من استدعاء وحد للسيرفر، بس نعطي إحساس بالتحميل)
-  const bar = document.getElementById('receiptProgressBar');
-  bar.style.width = '10%';
-  let fakeProgress = 10;
-  const progressTimer = setInterval(()=>{
-    fakeProgress = Math.min(90, fakeProgress + 5);
-    bar.style.width = fakeProgress + '%';
-  }, 500);
-
-  try{
-    // صورة بجودة أعلى من صور المنتجات العادية عشان الذكاء الاصطناعي يقرأ التفاصيل صح
-    const dataUrl = await compressImageFile(file, 1600, 0.9);
-    const scanReceiptFn = cloudFunctions.httpsCallable('scanReceipt');
-    const result = await scanReceiptFn({ image: dataUrl });
-    const items = (result.data && result.data.items) || [];
-    receiptRows = items.map(p=>({id: uid(), name: p.name, price: p.price, qty: p.qty||1, checked: true}));
-    clearInterval(progressTimer);
-    bar.style.width = '100%';
-    renderReceiptResults();
-    document.getElementById('receiptLoadingStep').style.display = 'none';
-    document.getElementById('receiptReviewStep').style.display = 'block';
-  }catch(err){
-    clearInterval(progressTimer);
-    console.error('AI scan error:', err);
-    showToast(t('scanFailed'));
-    resetReceiptScanner();
-  }
-}
-
-function renderReceiptResults(){
-  const box = document.getElementById('receiptResultsList');
-  if(!receiptRows.length){
-    box.innerHTML = `<div class="receipt-empty">${t('noLinesFound')}</div>`;
-    return;
-  }
-  box.innerHTML = receiptRows.map(r=>`
-    <div class="receipt-row">
-      <input type="checkbox" ${r.checked?'checked':''} onchange="updateReceiptField('${r.id}','checked',this.checked)">
-      <input type="text" value="${escapeHtml(r.name)}" oninput="updateReceiptField('${r.id}','name',this.value)">
-      <input type="number" step="1" min="1" value="${r.qty||1}" style="width:44px;" onchange="updateReceiptField('${r.id}','qty',this.value)">
-      <input type="number" step="0.001" value="${r.price}" oninput="updateReceiptField('${r.id}','price',this.value)">
-      <button class="del" onclick="deleteReceiptRow('${r.id}')">✕</button>
-    </div>
-  `).join('');
-}
-
-function updateReceiptField(id, field, value){
-  const row = receiptRows.find(r=>r.id===id);
-  if(!row) return;
-  if(field === 'price') row.price = parseFloat(value)||0;
-  else if(field === 'qty') row.qty = parseFloat(value)||1;
-  else row[field] = value;
-}
-
-function deleteReceiptRow(id){
-  receiptRows = receiptRows.filter(r=>r.id!==id);
-  renderReceiptResults();
-}
-
-async function addSelectedReceiptItems(){
-  const selected = receiptRows.filter(r=>r.checked && r.name.trim() && r.price>0);
-  if(!selected.length){ showToast(t('selectAtLeastOne')); return; }
-  for(const r of selected){
-    const name = r.name.trim();
-    const qty = (r.qty && r.qty>0) ? r.qty : 1;
-    state.items.push({ id: uid(), name, price: r.price, qty, unit:'piece', barcode:'', taxable:true, image:'' });
-    const productId = slugify(name);
-    const productInfo = {name, price:r.price, unit:'piece', barcode:'', taxable:true, image:'', date: state.date||todayISO(), store: state.store||''};
-    try{
-      await basketRef().collection('products').doc(productId).set(productInfo);
-      const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
-      if(ci>-1) productsCache[ci]=productInfo; else productsCache.push(productInfo);
-    }catch(e){}
-  }
-  saveDraft(); renderCart(); renderSummary();
-  closeReceiptScanner();
-  showToast(`✔ ${t('addedCount')} ${selected.length}`);
 }
 
 function handleImageSelect(e){
