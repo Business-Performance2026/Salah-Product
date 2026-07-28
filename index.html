@@ -602,6 +602,8 @@ input:focus{outline:none;border-color:var(--green);}
           <input type="text" id="catAddKeywords" placeholder="كلمات مفتاحية للتصنيف التلقائي (افصل بفاصلة): حليب, لبن, زبادي">
         </div>
         <button class="add-btn" onclick="addCategory()">+ إضافة صنف</button>
+        <button class="unit-btn" style="width:100%;margin-top:10px;" onclick="reclassifyAllProducts()">🔄 أعد تصنيف كل المنتجات غير المصنّفة تلقائياً</button>
+        <div id="reclassifyStatus" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
         <div id="categoriesAdminList" style="margin-top:12px;">جاري التحميل...</div>
       </div>
     </div>
@@ -808,7 +810,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v46'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v47'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1887,17 +1889,18 @@ async function addItem(){
   }
 
   const productId = barcode || slugify(name);
-  const productInfo = {name, price, unit, barcode: barcode||'', taxable, image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
+  const category = resolveCategoryForProduct(name);
+  const productInfo = {name, price, unit, barcode: barcode||'', taxable, category, image: currentImageDataUrl||'', date: state.date||todayISO(), store: state.store||''};
   try{
     await basketRef().collection('products').doc(productId).set(productInfo);
     const ci = productsCache.findIndex(p=>(p.barcode||slugify(p.name))===productId);
     if(ci>-1) productsCache[ci]=productInfo; else productsCache.push(productInfo);
   }catch(e){}
 
-  // شارك الاسم والوحدة والصورة وحالة الضريبة بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
+  // شارك الاسم والوحدة والصورة وحالة الضريبة والتصنيف بالقاعدة المشتركة (بدون السعر — يضل خاص فيك)
   if(barcode){
     try{
-      await globalProductRef(barcode).set({name, unit, barcode, taxable, image: currentImageDataUrl||''}, {merge:true});
+      await globalProductRef(barcode).set({name, unit, barcode, taxable, category, image: currentImageDataUrl||''}, {merge:true});
     }catch(e){
       // لو الاسم يختلف عن التسجيل العام لنفس الباركود، قواعد الأمان ترفض التحديث — نتجاهلها بهدوء
     }
@@ -2555,6 +2558,30 @@ function renderCategoriesAdminList(){
   }).join('');
 }
 
+async function reclassifyAllProducts(){
+  const box = document.getElementById('reclassifyStatus');
+  box.textContent = 'جاري الفحص...';
+  try{
+    const snap = await db.collection('global_products').get();
+    const toFix = [];
+    snap.forEach(doc=>{
+      const g = doc.data();
+      if(!g.category || g.category === 'uncategorized'){
+        const guessed = guessCategory(g.name || '');
+        if(guessed !== 'uncategorized') toFix.push({id: doc.id, category: guessed});
+      }
+    });
+    if(!toFix.length){ box.textContent = 'كل المنتجات مصنّفة أو ما فيه تخمين متاح لها ✔'; return; }
+    let done = 0;
+    for(const item of toFix){
+      box.textContent = `جاري التصنيف... (${done+1}/${toFix.length})`;
+      try{ await db.collection('global_products').doc(item.id).set({category: item.category}, {merge:true}); done++; }catch(e){}
+    }
+    box.textContent = `تم تصنيف ${done} منتج تلقائياً ✔`;
+    loadProductMgmtList();
+  }catch(e){ console.error(e); box.textContent = 'صار خطأ بالفحص'; }
+}
+
 function parseKeywordsInput(value){
   return (value||'').split(',').map(k=>k.trim()).filter(Boolean);
 }
@@ -2848,8 +2875,9 @@ async function uploadBulkImages(){
     statusBox.textContent = `جاري الرفع... (${done+failed+1}/${validRows.length})`;
     const barcode = r.barcode.trim();
     const productId = barcode || slugify(r.name.trim());
+    const category = resolveCategoryForProduct(r.name.trim());
     try{
-      await globalProductRef(productId).set({name: r.name.trim(), unit:'piece', barcode: barcode||'', image: r.preview}, {merge:true});
+      await globalProductRef(productId).set({name: r.name.trim(), unit:'piece', barcode: barcode||'', category, image: r.preview}, {merge:true});
       done++;
     }catch(e){
       failed++;
