@@ -802,7 +802,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v43'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v44'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -877,6 +877,19 @@ async function loadCategories(){
       }
     }
   }catch(e){ console.error('loadCategories error:', e); }
+}
+
+// يفصل أول إيموجي عن باقي النص بشكل موثوق، حتى لو ما فيه مسافة بينهم
+function splitCategoryIcon(text){
+  if(!text) return {icon:'📦', label:''};
+  const t = text.trim();
+  const match = t.match(/^(\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic})*)+/u);
+  if(match && match[0]){
+    const icon = match[0];
+    const label = t.slice(icon.length).trim();
+    return {icon, label: label || icon};
+  }
+  return {icon:'📦', label:t};
 }
 
 function guessCategory(name){
@@ -2164,15 +2177,17 @@ function renderCategoryBadges(){
     const cat = p.category || 'uncategorized';
     counts[cat] = (counts[cat]||0)+1;
   });
-  box.innerHTML = CATEGORIES.map(c=>`
+  box.innerHTML = CATEGORIES.map(c=>{
+    const parts = splitCategoryIcon(currentLang==='en'?c.en:c.ar);
+    return `
     <div class="category-badge" onclick="openCategoryModal('${c.id}')">
       <div class="circle">
-        ${(currentLang==='en'?c.en:c.ar).split(' ')[0]}
+        ${parts.icon}
         ${counts[c.id] ? `<span class="count">${counts[c.id]}</span>` : ''}
       </div>
-      <div class="label">${(currentLang==='en'?c.en:c.ar).replace(/^\S+\s/,'')}</div>
+      <div class="label">${escapeHtml(parts.label)}</div>
     </div>
-  `).join('');
+  `;}).join('');
   document.getElementById('confirmPurchaseBtn').style.display = prepListCache.some(p=>p.checked) ? 'block' : 'none';
 }
 
