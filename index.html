@@ -78,6 +78,15 @@ header .brand .sub{
   font-family:'Tajawal';font-weight:700;font-size:15px;margin:0 0 12px;
   color:var(--green-dark);
 }
+.admin-section-header{
+  display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+}
+.admin-section-header h2{margin:0;}
+.admin-section-header .chev-toggle{
+  font-size:13px;background:var(--paper-2);width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);
+}
+.admin-section-body{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);}
 label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;}
 input[type=text], input[type=number], input[type=date]{
   width:100%;padding:10px 12px;border:1.5px solid var(--line);
@@ -564,72 +573,114 @@ input:focus{outline:none;border-color:var(--green);}
 
   <!-- ADMIN TAB -->
   <div id="adminTab" style="display:none;">
+
     <div class="card">
-      <h2>🏷️ إدارة الأصناف</h2>
-      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">أصناف الروشن (خضار، ألبان...) — أضف صنف جديد، عدّل اسمه، أو احذفه. أي منتج بصنف تحذفه ينتقل تلقائياً لـ"غير مصنّف".</p>
-      <div class="row">
-        <div class="field" style="margin-bottom:0;">
-          <input type="text" id="catAddAr" placeholder="اسم الصنف بالعربي (مع إيموجي لو حبيت)">
+      <div class="admin-section-header" onclick="toggleAdminSection('catSection')">
+        <h2>🏷️ إدارة الأصناف</h2>
+        <span class="chev-toggle" id="catSection-chev">▾</span>
+      </div>
+      <div class="admin-section-body" id="catSection-body" style="display:none;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">أصناف الروشن (خضار، ألبان...) — أضف صنف جديد، عدّل اسمه، أو احذفه. أي منتج بصنف تحذفه ينتقل تلقائياً لـ"غير مصنّف".</p>
+        <div class="row">
+          <div class="field" style="margin-bottom:0;">
+            <input type="text" id="catAddAr" placeholder="اسم الصنف بالعربي (مع إيموجي لو حبيت)">
+          </div>
         </div>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <div class="field" style="margin-bottom:0;">
-          <input type="text" id="catAddEn" placeholder="English name">
+        <div class="row" style="margin-top:8px;">
+          <div class="field" style="margin-bottom:0;">
+            <input type="text" id="catAddEn" placeholder="English name">
+          </div>
+          <div class="field" style="max-width:80px;margin-bottom:0;">
+            <input type="number" id="catAddOrder" placeholder="ترتيب" min="1">
+          </div>
         </div>
-        <div class="field" style="max-width:80px;margin-bottom:0;">
-          <input type="number" id="catAddOrder" placeholder="ترتيب" min="1">
+        <div class="field" style="margin-top:8px;">
+          <input type="text" id="catAddKeywords" placeholder="كلمات مفتاحية للتصنيف التلقائي (افصل بفاصلة): حليب, لبن, زبادي">
         </div>
+        <button class="add-btn" onclick="addCategory()">+ إضافة صنف</button>
+        <div id="categoriesAdminList" style="margin-top:12px;">جاري التحميل...</div>
       </div>
-      <button class="add-btn" onclick="addCategory()">+ إضافة صنف</button>
-      <div id="categoriesAdminList" style="margin-top:12px;">جاري التحميل...</div>
     </div>
+
     <div class="card">
-      <h2>🏬 إدارة المتاجر</h2>
-      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">أسماء المحلات هذي تظهر كاقتراح تلقائي للجميع لما يكتبون اسم المحل بالسلة.</p>
-      <div class="row">
-        <div class="field" style="margin-bottom:0;">
-          <input type="text" id="storeInput" placeholder="اسم محل جديد" onkeydown="if(event.key==='Enter') addStore()">
+      <div class="admin-section-header" onclick="toggleAdminSection('storeSection')">
+        <h2>🏬 إدارة المتاجر</h2>
+        <span class="chev-toggle" id="storeSection-chev">▾</span>
+      </div>
+      <div class="admin-section-body" id="storeSection-body" style="display:none;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">أسماء المحلات هذي تظهر كاقتراح تلقائي للجميع لما يكتبون اسم المحل بالسلة.</p>
+        <div class="row">
+          <div class="field" style="margin-bottom:0;">
+            <input type="text" id="storeInput" placeholder="اسم محل جديد" onkeydown="if(event.key==='Enter') addStore()">
+          </div>
+          <button class="add-btn" style="width:auto;padding:10px 16px;margin-top:0;" onclick="addStore()">+</button>
         </div>
-        <button class="add-btn" style="width:auto;padding:10px 16px;margin-top:0;" onclick="addStore()">+</button>
+        <div id="storesList" style="margin-top:12px;">جاري التحميل...</div>
       </div>
-      <div id="storesList" style="margin-top:12px;">جاري التحميل...</div>
     </div>
+
     <div class="card">
-      <h2>📢 إعلام لكل المستخدمين</h2>
-      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">اكتب رسالة تظهر لكل المستخدمين أول ما يفتحون التطبيق (مثلاً: "حدّثنا صور بعض المنتجات، اضغط 🔄 فوق لتحديثها").</p>
-      <div class="field">
-        <input type="text" id="broadcastInput" placeholder="نص الإعلام...">
+      <div class="admin-section-header" onclick="toggleAdminSection('broadcastSection')">
+        <h2>📢 إعلام لكل المستخدمين</h2>
+        <span class="chev-toggle" id="broadcastSection-chev">▾</span>
       </div>
-      <button class="add-btn" onclick="publishBroadcast()">📢 نشر الإعلام</button>
-      <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="clearBroadcast()">🗑 إلغاء الإعلام الحالي</button>
-    </div>
-    <div class="card">
-      <h2>إحصائيات عامة</h2>
-      <div id="adminStats" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
-    </div>
-    <div class="card">
-      <h2>📸 رفع صور منتجات بالجملة</h2>
-      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">صوّر أو اختر صور منتجاتك (اللي عندك فعلياً)، اكتب اسم كل منتج، وارفعهم دفعة وحدة للقاعدة المشتركة بين كل المستخدمين.</p>
-      <div id="bulkImageRows"></div>
-      <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="addBulkImageRow()">+ إضافة صف</button>
-      <button class="add-btn" style="margin-top:10px;" onclick="uploadBulkImages()">☁️ رفع الكل للقاعدة المشتركة</button>
-      <div id="bulkUploadStatus" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
-    </div>
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <h2 style="margin:0;">🗂️ إدارة المنتجات المشتركة</h2>
-        <input type="text" id="productMgmtSearch" placeholder="بحث باسم منتج" oninput="renderProductMgmtList()" style="max-width:130px;padding:6px 10px;font-size:12px;">
+      <div class="admin-section-body" id="broadcastSection-body" style="display:none;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">اكتب رسالة تظهر لكل المستخدمين أول ما يفتحون التطبيق.</p>
+        <div class="field">
+          <input type="text" id="broadcastInput" placeholder="نص الإعلام...">
+        </div>
+        <button class="add-btn" onclick="publishBroadcast()">📢 نشر الإعلام</button>
+        <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="clearBroadcast()">🗑 إلغاء الإعلام الحالي</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:-4px 0 12px;">عدّل أي منتج (الاسم أو الصورة) أو احذفه لو مكرر أو غلط.</p>
-      <div id="productMgmtList">جاري التحميل...</div>
     </div>
+
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <h2 style="margin:0;">كل المستخدمين</h2>
-        <input type="text" id="adminSearch" placeholder="بحث باسم المستخدم" oninput="renderAdminUsers()" style="max-width:150px;padding:6px 10px;font-size:12px;">
+      <div class="admin-section-header" onclick="toggleAdminSection('statsSection')">
+        <h2>📊 إحصائيات عامة</h2>
+        <span class="chev-toggle" id="statsSection-chev">▾</span>
       </div>
-      <div id="adminUsersList">جاري التحميل...</div>
+      <div class="admin-section-body" id="statsSection-body" style="display:none;">
+        <div id="adminStats" style="font-size:13px;color:var(--muted);">جاري التحميل...</div>
+      </div>
     </div>
+
+    <div class="card">
+      <div class="admin-section-header" onclick="toggleAdminSection('bulkSection')">
+        <h2>📸 رفع صور منتجات بالجملة</h2>
+        <span class="chev-toggle" id="bulkSection-chev">▾</span>
+      </div>
+      <div class="admin-section-body" id="bulkSection-body" style="display:none;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">صوّر أو اختر صور منتجاتك، اكتب اسم كل منتج، وارفعهم دفعة وحدة للقاعدة المشتركة.</p>
+        <div id="bulkImageRows"></div>
+        <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="addBulkImageRow()">+ إضافة صف</button>
+        <button class="add-btn" style="margin-top:10px;" onclick="uploadBulkImages()">☁️ رفع الكل للقاعدة المشتركة</button>
+        <div id="bulkUploadStatus" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="admin-section-header" onclick="toggleAdminSection('productSection')">
+        <h2>🗂️ إدارة المنتجات المشتركة</h2>
+        <span class="chev-toggle" id="productSection-chev">▾</span>
+      </div>
+      <div class="admin-section-body" id="productSection-body" style="display:none;">
+        <input type="text" id="productMgmtSearch" placeholder="بحث باسم منتج" oninput="renderProductMgmtList()" style="margin-bottom:10px;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">عدّل أي منتج (الاسم أو الصورة) أو احذفه لو مكرر أو غلط.</p>
+        <div id="productMgmtList">جاري التحميل...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="admin-section-header" onclick="toggleAdminSection('usersSection')">
+        <h2>👥 كل المستخدمين</h2>
+        <span class="chev-toggle" id="usersSection-chev">▾</span>
+      </div>
+      <div class="admin-section-body" id="usersSection-body" style="display:none;">
+        <input type="text" id="adminSearch" placeholder="بحث باسم المستخدم" oninput="renderAdminUsers()" style="margin-bottom:10px;">
+        <div id="adminUsersList">جاري التحميل...</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -751,7 +802,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v42'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v43'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -2463,6 +2514,7 @@ function renderCategoriesAdminList(){
             <input type="text" id="catEditAr-${c.id}" value="${escapeHtml(c.ar)}" placeholder="الاسم بالعربي">
             <input type="text" id="catEditEn-${c.id}" value="${escapeHtml(c.en)}" placeholder="English name" style="margin-top:6px;">
             <input type="number" id="catEditOrder-${c.id}" value="${c.order||1}" placeholder="ترتيب" style="margin-top:6px;width:70px;">
+            <input type="text" id="catEditKeywords-${c.id}" value="${escapeHtml((c.keywords||[]).join(', '))}" placeholder="كلمات مفتاحية (افصل بفاصلة)" style="margin-top:6px;">
           </div>
           <button class="edit-btn" onclick="saveCategory('${c.id}')">💾</button>
           <button class="bulk-del" onclick="editingCategoryId=null; renderCategoriesAdminList();">✕</button>
@@ -2473,7 +2525,7 @@ function renderCategoriesAdminList(){
       <div class="bulk-row">
         <div class="bulk-fields">
           <div style="font-weight:600;font-size:13px;">${escapeHtml(c.ar)} <span style="color:var(--muted);font-weight:400;">(${c.order||'-'})</span></div>
-          <div style="font-size:11px;color:var(--muted);">${escapeHtml(c.en)}</div>
+          <div style="font-size:11px;color:var(--muted);">${escapeHtml(c.en)} ${(c.keywords&&c.keywords.length) ? '· '+c.keywords.length+' كلمة مفتاحية' : '· بدون كلمات مفتاحية'}</div>
         </div>
         ${isProtected ? '' : `<button class="edit-btn" onclick="editingCategoryId='${c.id}'; renderCategoriesAdminList();">✏️</button>
         <button class="bulk-del" onclick="deleteCategory('${c.id}')">🗑</button>`}
@@ -2482,17 +2534,23 @@ function renderCategoriesAdminList(){
   }).join('');
 }
 
+function parseKeywordsInput(value){
+  return (value||'').split(',').map(k=>k.trim()).filter(Boolean);
+}
+
 async function addCategory(){
   const ar = document.getElementById('catAddAr').value.trim();
   const en = document.getElementById('catAddEn').value.trim();
   const order = parseInt(document.getElementById('catAddOrder').value) || (CATEGORIES.length+1);
+  const keywords = parseKeywordsInput(document.getElementById('catAddKeywords').value);
   if(!ar || !en){ showToast('اكتب الاسم بالعربي والإنجليزي'); return; }
   const id = slugify(en || ar);
   try{
-    await db.collection('categories').doc(id).set({ar, en, order, keywords:[]});
+    await db.collection('categories').doc(id).set({ar, en, order, keywords});
     document.getElementById('catAddAr').value = '';
     document.getElementById('catAddEn').value = '';
     document.getElementById('catAddOrder').value = '';
+    document.getElementById('catAddKeywords').value = '';
     await loadCategories();
     renderCategoriesAdminList();
     renderCategoryBadges();
@@ -2504,9 +2562,10 @@ async function saveCategory(id){
   const ar = document.getElementById('catEditAr-'+id).value.trim();
   const en = document.getElementById('catEditEn-'+id).value.trim();
   const order = parseInt(document.getElementById('catEditOrder-'+id).value) || 1;
+  const keywords = parseKeywordsInput(document.getElementById('catEditKeywords-'+id).value);
   if(!ar || !en){ showToast('اكتب اسم صحيح'); return; }
   try{
-    await db.collection('categories').doc(id).set({ar, en, order}, {merge:true});
+    await db.collection('categories').doc(id).set({ar, en, order, keywords}, {merge:true});
     editingCategoryId = null;
     await loadCategories();
     renderCategoriesAdminList();
@@ -2755,6 +2814,14 @@ async function uploadBulkImages(){
   bulkImageRows = bulkImageRows.filter(r=>!validRows.includes(r));
   renderBulkImageRows();
   showToast(`تم رفع ${done} صورة للقاعدة المشتركة`);
+}
+
+function toggleAdminSection(id){
+  const body = document.getElementById(id+'-body');
+  const chev = document.getElementById(id+'-chev');
+  const open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  chev.textContent = open ? '▾' : '▴';
 }
 
 async function loadAdminPanel(){
