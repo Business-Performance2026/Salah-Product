@@ -604,32 +604,6 @@ input:focus{outline:none;border-color:var(--green);}
   <div class="modal" style="position:relative;max-height:88vh;overflow-y:auto;text-align:right;">
     <button onclick="closeCategoryModal()" style="position:absolute;top:10px;left:10px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px;">✕</button>
     <h2 id="categoryModalTitle" style="font-family:'Tajawal';font-weight:800;color:var(--green-dark);margin:0 0 12px;"></h2>
-
-    <div style="background:var(--paper-2);border-radius:12px;padding:12px;margin-bottom:14px;">
-      <div class="field" style="margin-bottom:8px;">
-        <div class="barcode-row">
-          <div class="field" style="margin-bottom:0;"><input type="text" id="catBarcode" placeholder="امسحه بالكاميرا أو اكتبه يدويًا" data-i18n-placeholder="barcodePh" oninput="handleCatBarcodeInput()"></div>
-          <button class="icon-btn" onclick="openScanner('catBarcode')" title="مسح بالكاميرا">📷</button>
-        </div>
-      </div>
-      <div class="row" style="margin-bottom:8px;">
-        <div class="field" style="margin-bottom:0;">
-          <input type="text" id="catName" placeholder="اسم المنتج" data-i18n-placeholder="productNamePh">
-        </div>
-        <div class="field" style="max-width:80px;margin-bottom:0;">
-          <input type="number" id="catQty" value="1" min="1" step="1">
-        </div>
-      </div>
-      <div class="unit-toggle" style="margin-bottom:8px;">
-        <button type="button" class="unit-btn active" id="catUnitPieceBtn" onclick="setCatUnitMode('piece')" data-i18n="unitPiece">🔢 بالقطعة</button>
-        <button type="button" class="unit-btn" id="catUnitKgBtn" onclick="setCatUnitMode('kg')" data-i18n="unitKg">⚖️ بالوزن (كجم)</button>
-      </div>
-      <div class="field" style="margin-bottom:8px;">
-        <input type="number" id="catPrice" placeholder="0.000" step="0.001" min="0">
-      </div>
-      <button class="add-btn" style="margin-top:0;" onclick="addCategoryModalItem()" data-i18n="addToCart">+ أضف للسلة</button>
-    </div>
-
     <div id="categoryModalItems"></div>
   </div>
 </div>
@@ -701,7 +675,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v38'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v40'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1036,13 +1010,13 @@ const I18N = {
     prepListEmptyForCompare:'قائمة الروشن فاضية — أضف منتجات فيها أول من تبويب "الروشن"',
     noCompareData:'ما فيه بيانات كافية — لازم تكون اشتريت منتج واحد على الأقل من قائمة الروشن قبل كذا',
     itemsKnown:'منتج معروف', compareFootnote:'* المقارنة على آخر سعر معروف لكل منتج بكل محل، بعملتك الحالية',
+    confirmPurchase:'✅ تأكيد الشراء', selectAtLeastOne:'حدد منتج واحد على الأقل', addedCount:'تم إضافة',
     editBtn:'✏️ تعديل', shareBtn:'📤 مشاركة PDF', deleteBtn:'🗑 حذف',
     overview:'📊 نظرة عامة هالشهر', totalMonth:'إجمالي هالشهر', shoppingTimes:'عدد مرات التسوق',
     topBought:'الأكثر شراءً', topStore:'أكثر محل', last6months:'آخر 6 أشهر', noStatsData:'ما فيه بيانات كافية بعد',
-    addToCartFromPrep:'أضف لسلة', noResults:'ما فيه نتائج', historyEmpty:'ما فيه فواتير محفوظة بعد',
+    noResults:'ما فيه نتائج', historyEmpty:'ما فيه فواتير محفوظة بعد',
     noSavedImages:'ما فيه صور منتجات محفوظة بعد — أضف منتج بصورة من تبويب السلة وبيطلع هنا',
     alreadyInList:'موجود بقائمتك أصلاً', addedToPrep:'تمت الإضافة للروشن ✔',
-    confirmPurchase:'✅ تأكيد الشراء', reviewPricesHint:'راجع الأسعار بالسلة',
     monthNames:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
     times:'مرة', trips:'رحلة'
   },
@@ -1076,13 +1050,13 @@ const I18N = {
     prepListEmptyForCompare:'Your To-Buy list is empty — add products there first from the "To-Buy List" tab',
     noCompareData:'Not enough data — you need to have bought at least one item from your To-Buy List before',
     itemsKnown:'items known', compareFootnote:'* Comparison based on the last known price of each item per store, in your current currency',
+    confirmPurchase:'✅ Confirm Purchase', selectAtLeastOne:'Select at least one item', addedCount:'Added',
     editBtn:'✏️ Edit', shareBtn:'📤 Share PDF', deleteBtn:'🗑 Delete',
     overview:'📊 This Month Overview', totalMonth:'Total This Month', shoppingTimes:'Shopping Trips',
     topBought:'Most Bought', topStore:'Top Store', last6months:'Last 6 Months', noStatsData:'Not enough data yet',
-    addToCartFromPrep:'Add to Cart', noResults:'No results', historyEmpty:'No saved invoices yet',
+    noResults:'No results', historyEmpty:'No saved invoices yet',
     noSavedImages:'No saved product images yet — add a product with a photo from the Cart tab and it\'ll show here',
     alreadyInList:'Already in your list', addedToPrep:'Added to list ✔',
-    confirmPurchase:'✅ Confirm Purchase', reviewPricesHint:'Review prices in cart',
     monthNames:['January','February','March','April','May','June','July','August','September','October','November','December'],
     times:'x', trips:'trips'
   }
@@ -1902,59 +1876,17 @@ function renderCategoryBadges(){
 }
 
 let activeCategoryId = null;
-let catCurrentUnit = 'piece';
 
 function openCategoryModal(catId){
   activeCategoryId = catId;
   const cat = CATEGORIES.find(c=>c.id===catId);
   document.getElementById('categoryModalTitle').textContent = cat ? (currentLang==='en'?cat.en:cat.ar) : '';
-  document.getElementById('catBarcode').value = '';
-  document.getElementById('catName').value = '';
-  document.getElementById('catPrice').value = '';
-  document.getElementById('catQty').value = '1';
-  setCatUnitMode('piece');
   renderCategoryModalItems();
   document.getElementById('categoryModal').classList.add('open');
 }
 function closeCategoryModal(){
   document.getElementById('categoryModal').classList.remove('open');
   activeCategoryId = null;
-}
-
-function setCatUnitMode(mode){
-  catCurrentUnit = mode;
-  document.getElementById('catUnitPieceBtn').classList.toggle('active', mode==='piece');
-  document.getElementById('catUnitKgBtn').classList.toggle('active', mode==='kg');
-  const qtyInput = document.getElementById('catQty');
-  if(mode==='kg'){
-    qtyInput.min='0.001'; qtyInput.step='0.001';
-    if(parseFloat(qtyInput.value)===1 || !qtyInput.value) qtyInput.value='';
-    qtyInput.placeholder = t('weightPh');
-  } else {
-    qtyInput.min='1'; qtyInput.step='1';
-    if(!qtyInput.value) qtyInput.value='1';
-    qtyInput.placeholder='';
-  }
-}
-
-async function handleCatBarcodeInput(){
-  const code = document.getElementById('catBarcode').value.trim();
-  if(!code || !currentUser) return;
-  try{
-    const gdoc = await globalProductRef(code).get();
-    if(gdoc.exists){
-      const g = gdoc.data();
-      document.getElementById('catName').value = document.getElementById('catName').value || g.name;
-      setCatUnitMode(g.unit || 'piece');
-    }
-    const doc = await basketRef().collection('products').doc(code).get();
-    if(doc.exists){
-      const info = doc.data();
-      document.getElementById('catName').value = document.getElementById('catName').value || info.name;
-      document.getElementById('catPrice').value = info.price;
-      setCatUnitMode(info.unit || 'piece');
-    }
-  }catch(e){}
 }
 
 function renderCategoryModalItems(){
@@ -1975,40 +1907,9 @@ function renderCategoryModalItems(){
       <div class="prep-card-fields">
         <input type="number" value="${p.qty||1}" min="0.001" step="1" onchange="updatePrepQty('${p.id}', this.value)" style="width:44px;" title="${t('qtyLabel')}">
         <input type="number" value="${p.price!=null && p.price!=='' ? p.price : ''}" placeholder="${t('priceLabelPiece')}" min="0" step="0.001" onchange="updatePrepField('${p.id}','price',this.value)" style="flex:1;background:var(--paper-2);border-radius:8px;" title="${t('priceLabelPiece')}">
-        <button class="edit-btn" onclick="quickAddFromPrep('${p.id}')" style="font-size:11px;font-weight:700;width:auto;white-space:nowrap;">${t('addToCartFromPrep')}</button>
       </div>
     </div>
   `).join('');
-}
-
-async function addCategoryModalItem(){
-  const name = document.getElementById('catName').value.trim();
-  const price = parseFloat(document.getElementById('catPrice').value) || '';
-  const qty = parseFloat(document.getElementById('catQty').value) || 1;
-  const barcode = document.getElementById('catBarcode').value.trim();
-  if(!name){ showToast(t('productNameLabel')); return; }
-
-  const known = productsCache.find(p=>p.name.trim().toLowerCase()===name.toLowerCase());
-  prepListCache.push({
-    id: uid(), name, qty, price, unit: catCurrentUnit, barcode,
-    image: known ? known.image||'' : '', category: activeCategoryId, checked:false
-  });
-
-  // نتذكر الاسم/الوحدة/الباركود بالقاعدة المشتركة (بدون سعر)
-  if(barcode){
-    try{ await globalProductRef(barcode).set({name, unit: catCurrentUnit, barcode}, {merge:true}); }catch(e){}
-  }
-
-  document.getElementById('catBarcode').value = '';
-  document.getElementById('catName').value = '';
-  document.getElementById('catPrice').value = '';
-  document.getElementById('catQty').value = '1';
-  setCatUnitMode('piece');
-
-  renderCategoryModalItems();
-  renderCategoryBadges();
-  savePrepList();
-  showToast(t('addedToPrep'));
 }
 
 async function savePrepList(){
@@ -2088,19 +1989,6 @@ function clearPrepList(){
   prepListCache = [];
   renderCategoryBadges(); savePrepList();
   showToast('تم مسح القائمة');
-}
-
-function quickAddFromPrep(id){
-  const item = prepListCache.find(p=>p.id===id);
-  if(!item) return;
-  closeCategoryModal();
-  switchTab('cart');
-  document.getElementById('pName').value = item.name;
-  document.getElementById('pQty').value = item.qty || 1;
-  if(item.image){ currentImageDataUrl = item.image; showImagePreview(item.image); }
-  renderSuggestions();
-  document.getElementById('pPrice').focus();
-  if(!item.checked){ item.checked = true; savePrepList(); }
 }
 
 /* ---- إحصائيات الشهر ---- */
@@ -2967,7 +2855,6 @@ async function openScanner(targetId){
           if(codes.length){
             document.getElementById(targetId).value = codes[0].rawValue;
             if(targetId === 'pBarcode') checkBarcodePrice();
-            else if(targetId === 'catBarcode') handleCatBarcodeInput();
             closeScanner();
             showToast('تم مسح الباركود ✔');
           }
