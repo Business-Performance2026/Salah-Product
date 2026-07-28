@@ -380,6 +380,9 @@ input:focus{outline:none;border-color:var(--green);}
 
   <!-- CART TAB -->
   <div id="cartTab">
+    <div id="savingsTeaser" style="display:none;background:linear-gradient(90deg, var(--green), var(--amber));border-radius:12px;padding:10px 14px;margin-bottom:14px;cursor:pointer;" onclick="switchTab('reports')">
+      <span id="savingsTeaserText" style="color:#fff;font-size:12.5px;font-weight:700;"></span>
+    </div>
     <div class="card">
       <h2 data-i18n="shopInfo">معلومات التسوق</h2>
       <div class="row">
@@ -512,6 +515,10 @@ input:focus{outline:none;border-color:var(--green);}
 
   <!-- REPORTS TAB -->
   <div id="reportsTab" style="display:none;">
+    <div class="card" style="background:linear-gradient(135deg, var(--green), var(--amber));border:none;">
+      <h2 style="background:none;margin:0 0 12px;padding:0;border-bottom:none;color:#fff;" data-i18n="savingsTitle">💰 وفّرت هالشهر</h2>
+      <div id="savingsCard" style="color:#fff;">جاري التحميل...</div>
+    </div>
     <div class="card">
       <h2 data-i18n="rangeReport">📅 مصروف فترة معيّنة</h2>
       <div class="row">
@@ -811,7 +818,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v50'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v51'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1187,6 +1194,8 @@ const I18N = {
     discount:'الخصم / التخفيض', total:'الإجمالي', finishTrip:'✔ إنهاء التسوق وحفظه', finishTripEdit:'💾 حفظ التعديلات على الفاتورة', taxEditHint:'عدّلها ⚙️',
     rangeReport:'📅 مصروف فترة معيّنة', fromLabel:'من', toLabel:'إلى', calcSpend:'احسب المصروف',
     topSpentTitle:'🏆 أكثر منتج صرفت عليه', loading:'جاري التحميل...',
+    savingsTitle:'💰 وفّرت هالشهر', noTripsThisMonth:'ما فيه تسوّق مسجّل هالشهر بعد',
+    savingsFromDiscounts:'من الخصومات المسجّلة على مشترياتك', savedSoFar:'وفّرت', thisMonth:'هالشهر', tapForDetails:'اضغط للتفاصيل',
     product:'منتج', exemptTag:'(معفى)',
     pickDates:'حدد تاريخ البداية والنهاية', fromBeforeTo:'تاريخ البداية لازم يكون قبل النهاية',
     noInvoicesRange:'ما فيه فواتير بهذي الفترة', rangeTotalLabel:'إجمالي',
@@ -1227,6 +1236,8 @@ const I18N = {
     discount:'Discount', total:'Total', finishTrip:'✔ Finish & Save Trip', finishTripEdit:'💾 Save Invoice Changes', taxEditHint:'edit ⚙️',
     rangeReport:'📅 Spending in a Period', fromLabel:'From', toLabel:'To', calcSpend:'Calculate Spending',
     topSpentTitle:'🏆 Product You Spent Most On', loading:'Loading...',
+    savingsTitle:'💰 Saved This Month', noTripsThisMonth:'No shopping trips recorded this month yet',
+    savingsFromDiscounts:'from discounts on your purchases', savedSoFar:'Saved', thisMonth:'this month', tapForDetails:'Tap for details',
     product:'item', exemptTag:'(exempt)',
     pickDates:'Pick a start and end date', fromBeforeTo:'Start date must be before end date',
     noInvoicesRange:'No invoices in this period', rangeTotalLabel:'Total',
@@ -1290,9 +1301,10 @@ async function loadLanguagePreference(){
 
 function refreshDynamicTranslatedViews(){
   renderCart(); renderSummary();
+  renderSavingsTeaser();
   if(document.getElementById('historyTab').style.display !== 'none') loadHistory();
   if(document.getElementById('prepTab').style.display !== 'none'){ renderPrepList(); renderPrepGallery(); }
-  if(document.getElementById('reportsTab').style.display !== 'none'){ renderStats(); renderTopSpentProduct(); }
+  if(document.getElementById('reportsTab').style.display !== 'none'){ renderStats(); renderTopSpentProduct(); renderSavingsCard(); }
 }
 
 /* ---- ترجمة أسماء المنتجات/المتاجر تلقائياً (عربي → إنجليزي) ---- */
@@ -2134,7 +2146,7 @@ function switchTab(tab){
   if(tab==='cart'){ setTimeout(adjustBodyPadding, 0); } else { document.body.style.paddingBottom = '24px'; }
   if(tab==='prep'){ loadPrepList(); }
   if(tab==='admin'){ loadAdminPanel(); }
-  if(tab==='reports'){ renderStats(); renderTopSpentProduct(); }
+  if(tab==='reports'){ renderStats(); renderTopSpentProduct(); renderSavingsCard(); }
   if(tab==='warranty'){ loadWarrantyList(); }
 }
 
@@ -2340,6 +2352,65 @@ function clearPrepList(){
 }
 
 /* ---- إحصائيات الشهر ---- */
+function computeMonthlySavings(){
+  const now = new Date();
+  const curMonthKey = now.toISOString().slice(0,7);
+  const trips = Object.values(tripsCache).filter(trip=>trip.date && trip.date.slice(0,7)===curMonthKey);
+  const byCurrency = {};
+  trips.forEach(trip=>{
+    const code = trip.currency || currentCurrency.code;
+    byCurrency[code] = (byCurrency[code]||0) + (trip.discount||0);
+  });
+  const productCount = {};
+  trips.forEach(trip=>{
+    (trip.items||[]).forEach(i=>{
+      const key = (i.name||'').trim();
+      if(key) productCount[key] = (productCount[key]||0)+1;
+    });
+  });
+  const topProduct = Object.entries(productCount).sort((a,b)=>b[1]-a[1])[0];
+  return { byCurrency, tripCount: trips.length, topProduct };
+}
+
+function renderSavingsCard(){
+  const box = document.getElementById('savingsCard');
+  if(!box) return;
+  const { byCurrency, tripCount, topProduct } = computeMonthlySavings();
+
+  if(!tripCount){
+    box.innerHTML = `<p style="margin:0;font-size:13px;opacity:.9;">${t('noTripsThisMonth')}</p>`;
+    return;
+  }
+
+  const currenciesWithSavings = Object.keys(byCurrency).filter(c=>byCurrency[c]>0);
+  const amountsHtml = currenciesWithSavings.length
+    ? currenciesWithSavings.map(code=>{
+        const tc = currencyByCode(code);
+        return `<div style="font-family:'JetBrains Mono';font-weight:900;font-size:30px;">${fmt(byCurrency[code], tc)} ${tc.symbol}</div>`;
+      }).join('')
+    : `<div style="font-family:'JetBrains Mono';font-weight:900;font-size:26px;">${fmt(0)} ${currentCurrency.symbol}</div>`;
+
+  box.innerHTML = `
+    ${amountsHtml}
+    <div style="font-size:12px;opacity:.9;margin-top:2px;">${t('savingsFromDiscounts')}</div>
+    <div style="display:flex;gap:16px;margin-top:12px;font-size:12.5px;flex-wrap:wrap;">
+      <div>🛒 ${tripCount} ${t('shoppingTimes')}</div>
+      ${topProduct ? `<div>🏆 ${escapeHtml(trName(topProduct[0]))}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderSavingsTeaser(){
+  const banner = document.getElementById('savingsTeaser');
+  const textEl = document.getElementById('savingsTeaserText');
+  if(!banner) return;
+  const { byCurrency, tripCount } = computeMonthlySavings();
+  const totalInCurrent = byCurrency[currentCurrency.code] || 0;
+  if(!tripCount || totalInCurrent <= 0){ banner.style.display = 'none'; return; }
+  textEl.textContent = `💰 ${t('savedSoFar')} ${fmt(totalInCurrent)} ${currentCurrency.symbol} ${t('thisMonth')} — ${t('tapForDetails')}`;
+  banner.style.display = 'block';
+}
+
 function renderStats(){
   const panel = document.getElementById('statsPanel');
   const trips = Object.values(tripsCache);
@@ -3091,6 +3162,7 @@ async function loadHistory(){
     const snap = await basketRef().collection('trips').orderBy('date','desc').limit(50).get();
     snap.forEach(doc=>{ const trip = doc.data(); tripsCache[trip.id] = trip; idx.push(trip); });
   }catch(e){ console.error(e); }
+  renderSavingsTeaser();
   if(!idx.length){
     box.innerHTML = `<div class="empty-state"><div class="big">🧾</div>${t('historyEmpty')}</div>`;
     return;
