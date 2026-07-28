@@ -675,7 +675,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v40'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v41'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -1860,6 +1860,7 @@ function renderCategoryBadges(){
   if(!box) return;
   const counts = {};
   prepListCache.forEach(p=>{
+    if(p.checked) return; // بس المنتجات الباقية (اللي ما اتشطبت بعد) تدخل بالعدّاد
     const cat = p.category || 'uncategorized';
     counts[cat] = (counts[cat]||0)+1;
   });
