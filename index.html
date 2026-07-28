@@ -522,12 +522,6 @@ input:focus{outline:none;border-color:var(--green);}
       <div id="topSpentProduct" style="font-size:13px;color:var(--muted);" data-i18n="loading">جاري التحميل...</div>
     </div>
     <div class="card">
-      <h2 data-i18n="storeCompareTitle">🏬 مقارنة المتاجر — أي محل أرخص لمنتجاتك؟</h2>
-      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;" data-i18n="storeCompareDesc">تقارن أسعار آخر مرة اشتريت فيها كل منتج بقائمة "الروشن" الحالية بين كل محل تسوقت منه قبل.</p>
-      <button class="add-btn" onclick="compareStores()" data-i18n="compareNow">🔍 قارن الآن</button>
-      <div id="storeCompareResult" style="margin-top:12px;"></div>
-    </div>
-    <div class="card">
       <h2>📊 نظرة عامة هالشهر</h2>
       <div id="statsPanel"></div>
     </div>
@@ -810,7 +804,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v47'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v49'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -900,15 +894,25 @@ function splitCategoryIcon(text){
   return {icon:'📦', label:t};
 }
 
+const DEFAULT_CATEGORY_IDS = new Set(DEFAULT_CATEGORIES.map(c=>c.id));
+
 function guessCategory(name){
   const n = (name||'').trim().toLowerCase();
   if(!n) return 'uncategorized';
   const words = n.split(/\s+/);
 
+  // فئاتك المخصصة (اللي تضيفها من الإدارة) لها أولوية على الفئات الافتراضية
+  // لو نفس الكلمة المفتاحية موجودة بالاثنين — عشان تصنيفك الخاص يفوز دايماً
+  const orderedCats = [...CATEGORIES].sort((a,b)=>{
+    const aCustom = !DEFAULT_CATEGORY_IDS.has(a.id);
+    const bCustom = !DEFAULT_CATEGORY_IDS.has(b.id);
+    return (aCustom===bCustom) ? 0 : (aCustom ? -1 : 1);
+  });
+
   // نتأكد من الكلمات المركّبة (فيها مسافة) أول شي — لازم تكون موجودة كعبارة كاملة
-  for(const cat of CATEGORIES){
+  for(const cat of orderedCats){
     if(cat.id === 'uncategorized') continue;
-    for(const kw of cat.keywords){
+    for(const kw of (cat.keywords||[])){
       const kwLower = kw.toLowerCase();
       if(kwLower.includes(' ') && n.includes(kwLower)) return cat.id;
     }
@@ -917,9 +921,9 @@ function guessCategory(name){
   // بعدين نفحص كلمة كلمة من الاسم بالترتيب (الكلمة الأولى غالباً أهم من وصف النكهة اللي بعدها،
   // زي "فيمتو مانجو" — الأولوية لـ"فيمتو" (مشروبات) مو "مانجو" (فواكه))
   for(const w of words){
-    for(const cat of CATEGORIES){
+    for(const cat of orderedCats){
       if(cat.id === 'uncategorized') continue;
-      for(const kw of cat.keywords){
+      for(const kw of (cat.keywords||[])){
         const kwLower = kw.toLowerCase();
         if(kwLower.includes(' ')) continue; // تعاملنا معها فوق
         if(w === kwLower || w.startsWith(kwLower)) return cat.id;
@@ -1174,14 +1178,9 @@ const I18N = {
     discount:'الخصم / التخفيض', total:'الإجمالي', finishTrip:'✔ إنهاء التسوق وحفظه', finishTripEdit:'💾 حفظ التعديلات على الفاتورة', taxEditHint:'عدّلها ⚙️',
     rangeReport:'📅 مصروف فترة معيّنة', fromLabel:'من', toLabel:'إلى', calcSpend:'احسب المصروف',
     topSpentTitle:'🏆 أكثر منتج صرفت عليه', loading:'جاري التحميل...',
-    storeCompareTitle:'🏬 مقارنة المتاجر — أي محل أرخص لمنتجاتك؟',
-    storeCompareDesc:'تقارن أسعار آخر مرة اشتريت فيها كل منتج بقائمة "الروشن" الحالية بين كل محل تسوقت منه قبل.',
-    compareNow:'🔍 قارن الآن', product:'منتج', exemptTag:'(معفى)',
+    product:'منتج', exemptTag:'(معفى)',
     pickDates:'حدد تاريخ البداية والنهاية', fromBeforeTo:'تاريخ البداية لازم يكون قبل النهاية',
     noInvoicesRange:'ما فيه فواتير بهذي الفترة', rangeTotalLabel:'إجمالي',
-    prepListEmptyForCompare:'قائمة الروشن فاضية — أضف منتجات فيها أول من تبويب "الروشن"',
-    noCompareData:'ما فيه بيانات كافية — لازم تكون اشتريت منتج واحد على الأقل من قائمة الروشن قبل كذا',
-    itemsKnown:'منتج معروف', compareFootnote:'* المقارنة على آخر سعر معروف لكل منتج بكل محل، بعملتك الحالية',
     confirmPurchase:'✅ تأكيد الشراء', selectAtLeastOne:'حدد منتج واحد على الأقل', addedCount:'تم إضافة',
     addWarranty:'🛡️ إضافة فاتورة ضمان', warrantyPhoto:'صورة الفاتورة / كرت الضمان', warrantyProductPh:'مثال: ثلاجة سامسونج',
     purchaseDate:'تاريخ الشراء', warrantyDuration:'مدة الضمان (بالأشهر)', saveWarranty:'+ حفظ فاتورة الضمان',
@@ -1218,14 +1217,9 @@ const I18N = {
     discount:'Discount', total:'Total', finishTrip:'✔ Finish & Save Trip', finishTripEdit:'💾 Save Invoice Changes', taxEditHint:'edit ⚙️',
     rangeReport:'📅 Spending in a Period', fromLabel:'From', toLabel:'To', calcSpend:'Calculate Spending',
     topSpentTitle:'🏆 Product You Spent Most On', loading:'Loading...',
-    storeCompareTitle:'🏬 Compare Stores — Which is Cheaper?',
-    storeCompareDesc:'Compares prices of the last purchase of each item in your current "To-Buy List" across every store you\'ve shopped at.',
-    compareNow:'🔍 Compare Now', product:'item', exemptTag:'(exempt)',
+    product:'item', exemptTag:'(exempt)',
     pickDates:'Pick a start and end date', fromBeforeTo:'Start date must be before end date',
     noInvoicesRange:'No invoices in this period', rangeTotalLabel:'Total',
-    prepListEmptyForCompare:'Your To-Buy list is empty — add products there first from the "To-Buy List" tab',
-    noCompareData:'Not enough data — you need to have bought at least one item from your To-Buy List before',
-    itemsKnown:'items known', compareFootnote:'* Comparison based on the last known price of each item per store, in your current currency',
     confirmPurchase:'✅ Confirm Purchase', selectAtLeastOne:'Select at least one item', addedCount:'Added',
     addWarranty:'🛡️ Add Warranty Receipt', warrantyPhoto:'Receipt / Warranty Card Photo', warrantyProductPh:'e.g. Samsung Fridge',
     purchaseDate:'Purchase Date', warrantyDuration:'Warranty Duration (months)', saveWarranty:'+ Save Warranty Receipt',
@@ -2436,62 +2430,6 @@ function calculateRangeReport(){
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">${t('rangeTotalLabel')} ${trips.length} ${currentLang==='en' ? 'invoices between' : 'فاتورة بين'} ${from} ${currentLang==='en' ? 'and' : 'و'} ${to}</div>
     </div>
   `;
-}
-
-async function compareStores(){
-  const box = document.getElementById('storeCompareResult');
-  box.innerHTML = t('loading');
-
-  // نتأكد إن قائمة الروشن محمّلة وطازة
-  try{
-    const doc = await basketRef().get();
-    prepListCache = (doc.exists && doc.data().prepList) || [];
-  }catch(e){}
-
-  if(!prepListCache.length){
-    box.innerHTML = `<p style="color:var(--muted);font-size:13px;margin:0;">${t('prepListEmptyForCompare')}</p>`;
-    return;
-  }
-
-  const wantedNames = prepListCache.map(p=>p.name.trim().toLowerCase());
-  const trips = Object.values(tripsCache).filter(trip=>trip.store && (trip.currency||currentCurrency.code)===currentCurrency.code);
-
-  // لكل محل ولكل منتج مطلوب، نلقى آخر سعر معروف (الأحدث تاريخاً)
-  const storeData = {};
-  trips.forEach(trip=>{
-    (trip.items||[]).forEach(i=>{
-      const key = (i.name||'').trim().toLowerCase();
-      if(!wantedNames.includes(key)) return;
-      if(!storeData[trip.store]) storeData[trip.store] = {};
-      const existing = storeData[trip.store][key];
-      if(!existing || trip.date > existing.date){
-        storeData[trip.store][key] = {price: i.price, date: trip.date};
-      }
-    });
-  });
-
-  const storeNames = Object.keys(storeData);
-  if(!storeNames.length){
-    box.innerHTML = `<p style="color:var(--muted);font-size:13px;margin:0;">${t('noCompareData')}</p>`;
-    return;
-  }
-
-  const results = storeNames.map(store=>{
-    const prices = storeData[store];
-    const foundCount = Object.keys(prices).length;
-    const total = Object.values(prices).reduce((s,p)=>s+p.price,0);
-    return {store, total, foundCount};
-  }).sort((a,b)=>a.total-b.total);
-
-  box.innerHTML = results.map((r,idx)=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;${idx>0?'border-top:1px dotted var(--line);':''}">
-      <div>
-        <div style="font-weight:${idx===0?'800':'600'};font-size:${idx===0?'14px':'13px'};">${idx===0?'🏆 ':''}${escapeHtml(trName(r.store))}</div>
-        <div style="font-size:11px;color:var(--muted);">${r.foundCount} ${currentLang==='en' ? 'of' : 'من'} ${wantedNames.length} ${t('itemsKnown')}</div>
-      </div>
-      <span style="font-family:'JetBrains Mono';font-weight:700;color:var(--green-dark);">${fmt(r.total)} ${currentCurrency.symbol}</span>
-    </div>
-  `).join('') + `<div style="font-size:11px;color:var(--muted);margin-top:8px;">${t('compareFootnote')} (${currentCurrency.code})</div>`;
 }
 
 /* ---- إدارة المتاجر (مشتركة بين كل المستخدمين) ---- */
