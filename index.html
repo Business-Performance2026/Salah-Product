@@ -655,8 +655,10 @@ input:focus{outline:none;border-color:var(--green);}
       </div>
       <div class="admin-section-body" id="bulkSection-body" style="display:none;">
         <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">صوّر أو اختر صور منتجاتك، اكتب اسم كل منتج، وارفعهم دفعة وحدة للقاعدة المشتركة.</p>
+        <button class="add-btn" style="margin-bottom:10px;" onclick="document.getElementById('bulkMultiFile').click()">📁 اختر عدة صور دفعة وحدة (يسمّيها من اسم الملف)</button>
+        <input type="file" id="bulkMultiFile" accept="image/*" multiple style="display:none" onchange="handleBulkMultiFilePick(event)">
         <div id="bulkImageRows"></div>
-        <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="addBulkImageRow()">+ إضافة صف</button>
+        <button class="unit-btn" style="width:100%;margin-top:8px;" onclick="addBulkImageRow()">+ إضافة صف يدوي</button>
         <button class="add-btn" style="margin-top:10px;" onclick="uploadBulkImages()">☁️ رفع الكل للقاعدة المشتركة</button>
         <div id="bulkUploadStatus" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
       </div>
@@ -806,7 +808,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v45'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v46'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -2810,6 +2812,31 @@ async function handleBulkFilePick(id, e){
   row.file = file;
   row.preview = await compressImageFile(file, 300, 0.6);
   renderBulkImageRows();
+}
+
+function filenameToProductName(filename){
+  return filename
+    .replace(/\.[^/.]+$/, '')          // شيل الامتداد (.jpg, .png...)
+    .replace(/[_-]+/g, ' ')            // بدّل الشرطات والسفلية بمسافات
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function handleBulkMultiFilePick(e){
+  const files = Array.from(e.target.files || []);
+  if(!files.length) return;
+  document.getElementById('bulkUploadStatus').textContent = `جاري تجهيز ${files.length} صورة...`;
+  for(const file of files){
+    const preview = await compressImageFile(file, 300, 0.6);
+    bulkImageRows.push({
+      id: uid(), file, preview,
+      name: filenameToProductName(file.name),
+      barcode: ''
+    });
+  }
+  renderBulkImageRows();
+  document.getElementById('bulkUploadStatus').textContent = `تم تجهيز ${files.length} صورة — راجع الأسماء قبل الرفع`;
+  e.target.value = '';
 }
 
 async function uploadBulkImages(){
