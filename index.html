@@ -342,12 +342,16 @@ input:focus{outline:none;border-color:var(--green);}
       <button onclick="openCurrencyModal()" id="currencyBadgeBtn" style="background:var(--paper-2);border:1px solid var(--line);border-radius:999px;color:var(--green-dark);font-size:11px;font-weight:700;cursor:pointer;padding:3px 10px;">🌍 —</button>
     </div>
   </header>
-  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;">
-    <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')" data-i18n="tabCart">السلة</button>
-    <button class="tab-btn" id="tabHistory" onclick="switchTab('history')" data-i18n="tabHistory">السجل</button>
-    <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')" data-i18n="tabPrep">الروشن</button>
-    <button class="tab-btn" id="tabReports" onclick="switchTab('reports')" data-i18n="tabReports">📊 تقارير</button>
-    <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')" style="display:none;">🛠️ إدارة</button>
+  <div style="display:flex;gap:6px;margin-bottom:14px;position:relative;">
+    <button class="tab-btn active" id="tabCart" onclick="switchTab('cart')" data-i18n="tabCart" style="flex:1;">السلة</button>
+    <button class="tab-btn" id="tabHistory" onclick="switchTab('history')" data-i18n="tabHistory" style="flex:1;">السجل</button>
+    <button class="tab-btn" id="tabPrep" onclick="switchTab('prep')" data-i18n="tabPrep" style="flex:1;">الروشن</button>
+    <button class="tab-btn" id="tabMoreBtn" onclick="toggleMoreMenu()" style="flex:0 0 auto;padding:9px 12px;">⋯</button>
+    <div id="moreMenu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(36,48,42,.12);overflow:hidden;z-index:30;min-width:160px;">
+      <button class="tab-btn" id="tabReports" onclick="switchTab('reports'); toggleMoreMenu();" data-i18n="tabReports" style="display:block;width:100%;text-align:right;border:none;border-radius:0;padding:12px 14px;">📊 تقارير</button>
+      <button class="tab-btn" id="tabWarranty" onclick="switchTab('warranty'); toggleMoreMenu();" data-i18n="tabWarranty" style="display:block;width:100%;text-align:right;border:none;border-radius:0;padding:12px 14px;border-top:1px solid var(--paper-2);">🛡️ الضمان</button>
+      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin'); toggleMoreMenu();" style="display:none;width:100%;text-align:right;border:none;border-radius:0;padding:12px 14px;border-top:1px solid var(--paper-2);">🛠️ إدارة</button>
+    </div>
   </div>
 
   <div class="sync-badge" style="margin-bottom:14px;cursor:default;">
@@ -516,8 +520,69 @@ input:focus{outline:none;border-color:var(--green);}
     </div>
   </div>
 
+  <!-- WARRANTY TAB -->
+  <div id="warrantyTab" style="display:none;">
+    <div class="card">
+      <h2 data-i18n="addWarranty">🛡️ إضافة فاتورة ضمان</h2>
+      <div class="img-upload-row">
+        <div class="img-preview-box" id="warrantyPreviewBox">
+          <span class="plus" id="warrantyPlusIcon">📷</span>
+          <img id="warrantyPreview" style="display:none;">
+          <button class="img-remove-btn" id="warrantyRemoveBtn" onclick="event.stopPropagation(); removeWarrantyImage()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
+          <span class="label-text" data-i18n="warrantyPhoto">صورة الفاتورة / كرت الضمان</span>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="unit-btn" style="flex:1;padding:7px 4px;" onclick="document.getElementById('warrantyCamera').click()" data-i18n="camera">📷 كاميرا</button>
+            <button type="button" class="unit-btn" style="flex:1;padding:7px 4px;" onclick="document.getElementById('warrantyGallery').click()" data-i18n="gallery">🖼️ معرض الصور</button>
+          </div>
+        </div>
+        <input type="file" id="warrantyCamera" accept="image/*" capture="environment" style="display:none" onchange="handleWarrantyImage(event)">
+        <input type="file" id="warrantyGallery" accept="image/*" style="display:none" onchange="handleWarrantyImage(event)">
+      </div>
+      <div class="field">
+        <label data-i18n="productNameLabel">اسم المنتج</label>
+        <input type="text" id="warrantyProductName" placeholder="مثال: ثلاجة سامسونج" data-i18n-placeholder="warrantyProductPh">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label data-i18n="purchaseDate">تاريخ الشراء</label>
+          <input type="date" id="warrantyPurchaseDate">
+        </div>
+        <div class="field">
+          <label data-i18n="warrantyDuration">مدة الضمان (بالأشهر)</label>
+          <input type="number" id="warrantyDuration" placeholder="مثال: 24" min="0">
+        </div>
+      </div>
+      <button class="add-btn" onclick="addWarrantyItem()" data-i18n="saveWarranty">+ حفظ فاتورة الضمان</button>
+    </div>
+    <div class="receipt">
+      <div class="receipt-head"><span data-i18n="savedWarranties">فواتير الضمان المحفوظة</span></div>
+      <div id="warrantyList"><div class="receipt-empty" data-i18n="noWarranties">ما فيه فواتير ضمان محفوظة بعد</div></div>
+    </div>
+  </div>
+
   <!-- ADMIN TAB -->
   <div id="adminTab" style="display:none;">
+    <div class="card">
+      <h2>🏷️ إدارة الأصناف</h2>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">أصناف الروشن (خضار، ألبان...) — أضف صنف جديد، عدّل اسمه، أو احذفه. أي منتج بصنف تحذفه ينتقل تلقائياً لـ"غير مصنّف".</p>
+      <div class="row">
+        <div class="field" style="margin-bottom:0;">
+          <input type="text" id="catAddAr" placeholder="اسم الصنف بالعربي (مع إيموجي لو حبيت)">
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="field" style="margin-bottom:0;">
+          <input type="text" id="catAddEn" placeholder="English name">
+        </div>
+        <div class="field" style="max-width:80px;margin-bottom:0;">
+          <input type="number" id="catAddOrder" placeholder="ترتيب" min="1">
+        </div>
+      </div>
+      <button class="add-btn" onclick="addCategory()">+ إضافة صنف</button>
+      <div id="categoriesAdminList" style="margin-top:12px;">جاري التحميل...</div>
+    </div>
     <div class="card">
       <h2>🏬 إدارة المتاجر</h2>
       <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">أسماء المحلات هذي تظهر كاقتراح تلقائي للجميع لما يكتبون اسم المحل بالسلة.</p>
@@ -583,6 +648,17 @@ input:focus{outline:none;border-color:var(--green);}
       <div class="tax-line">
         <span data-i18n="discount">الخصم / التخفيض</span>
         <input type="number" id="discountAmount" placeholder="0" min="0" step="0.001" oninput="renderSummary()">
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #4A7B62;">
+        <div id="receiptPhotoRow" style="display:flex;align-items:center;gap:8px;">
+          <div class="img-preview-box" id="tripReceiptPreviewBox" style="width:40px;height:40px;flex-shrink:0;" onclick="document.getElementById('tripReceiptFile').click()">
+            <span class="plus" id="tripReceiptPlusIcon" style="font-size:14px;">📎</span>
+            <img id="tripReceiptPreview" style="display:none;">
+            <button class="img-remove-btn" id="tripReceiptRemoveBtn" onclick="event.stopPropagation(); removeTripReceiptImage()">✕</button>
+          </div>
+          <span style="font-size:11.5px;color:#D9E7DE;flex:1;" data-i18n="attachReceiptPhoto">📎 أرفق صورة الفاتورة (اختياري)</span>
+        </div>
+        <input type="file" id="tripReceiptFile" accept="image/*" style="display:none" onchange="handleTripReceiptImage(event)">
       </div>
     </div>
     <div class="summary-row total"><span data-i18n="total">الإجمالي</span><span class="val"><span id="sumTotal">0.000</span> <span id="sumCurrencySymbol" style="font-size:12px;color:var(--amber);"></span></span></div>
@@ -675,7 +751,7 @@ input:focus{outline:none;border-color:var(--green);}
 <script>
 /* ====== نظام كسر التخزين المؤقت: يحل مشكلة ظهور نسخة قديمة بالاختصار ====== */
 (function forceRefreshIfOutdated(){
-  const APP_VERSION = 'v41'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
+  const APP_VERSION = 'v42'; // ⚠️ لازم يتغيّر هذا الرقم مع كل نسخة جديدة من الملف
   const KEY = 'mushtriyati_app_version';
   const stored = localStorage.getItem(KEY);
   if(stored && stored !== APP_VERSION){
@@ -714,21 +790,43 @@ let adminUsersCache = [];
 let productsCache = [];
 
 /* ================= فئات ترتيب الروشن (بترتيب المسار المعتاد بالسوبرماركت) ================= */
-const CATEGORIES = [
-  { id:'produce', ar:'🥦 خضار وفواكه', en:'🥦 Produce', keywords:['طماط','بندورة','خيار','بصل','ثوم','بطاطس','بطاطا','جزر','فلفل','باذنجان','كوسا','خس','جرجير','بقدونس','كزبرة','نعناع','ليمون','موز','تفاح','برتقال','عنب','بطيخ','شمام','مانجو','رمان','كيوي','أناناس','فراولة','تمر','خضار','فاكهة','فواكه'] },
-  { id:'meat', ar:'🍗 لحوم ودواجن وأسماك', en:'🍗 Meat & Seafood', keywords:['دجاج','لحم','فراخ','كبدة','سمك','هامور','سبيتي','جمبري','ربيان','إبل','نقانق','برجر','لانشون','مفروم','ستيك'] },
-  { id:'dairy', ar:'🥛 ألبان وبيض', en:'🥛 Dairy & Eggs', keywords:['حليب','لبن','زبادي','رائب','جبنة','جبن','زبدة','قشطة','بيض','لبنة','آيس كريم','كريمة'] },
-  { id:'bakery', ar:'🍞 مخبوزات', en:'🍞 Bakery', keywords:['خبز','توست','صمون','كرواسون','كيك','بسكويت شاي','دونات','رقاق','خبز عربي'] },
-  { id:'canned', ar:'🥫 معلبات وحبوب', en:'🥫 Canned & Grains', keywords:['تونة معلبة','فول معلب','حمص معلب','ذرة معلبة','عدس','فاصوليا','حمص جاف','شوفان','كورن فليكس','معلب'] },
-  { id:'rice_pasta', ar:'🍚 أرز ومعكرونة', en:'🍚 Rice & Pasta', keywords:['أرز','رز','معكرونة','سباغيتي','شعيرية','فريكة','برغل'] },
-  { id:'spices', ar:'🧂 توابل وصلصات', en:'🧂 Spices & Sauces', keywords:['ملح','فلفل أسود','كمون','كركم','بهارات','صلصة','كاتشب','مايونيز','خردل','صويا','خل','زيت','سكر','عسل','طحينة'] },
-  { id:'beverages', ar:'🥤 مشروبات', en:'🥤 Beverages', keywords:['ماء','مياه','عصير','كولا','غازي','سفن أب','شاي','قهوة','نسكافيه','طاقة','مشروب','فيمتو','ببسي','ريفريش','تانج','رديبول','ريدبول','فانتا','سبرايت'] },
-  { id:'snacks', ar:'🍫 وجبات خفيفة', en:'🍫 Snacks', keywords:['شيبس','مكسرات','شوكولاتة','شوكلاتة','بسكويت محلى','حلاوة','فشار','رقائق'] },
-  { id:'frozen', ar:'🧊 تجميد', en:'🧊 Frozen', keywords:['مجمد','مجمدة','سمبوسة','بيتزا','فطائر مجمدة'] },
-  { id:'cleaning', ar:'🧽 منظفات', en:'🧽 Cleaning', keywords:['مسحوق غسيل','سائل غسيل','معطر','مطهر','مناديل ورقية','ورق تواليت','أكياس قمامة','منظف','صابون سائل','مبيض','كلور'] },
-  { id:'personal_care', ar:'🧴 عناية شخصية', en:'🧴 Personal Care', keywords:['شامبو','بلسم','صابون','معجون أسنان','فرشاة أسنان','مزيل عرق','كريم','شفرات','مناديل مبللة','حفاضات'] },
-  { id:'uncategorized', ar:'📦 غير مصنّف', en:'📦 Uncategorized', keywords:[] },
+const DEFAULT_CATEGORIES = [
+  { id:'produce', ar:'🥦 خضار وفواكه', en:'🥦 Produce', order:1, keywords:['طماط','بندورة','خيار','بصل','ثوم','بطاطس','بطاطا','جزر','فلفل','باذنجان','كوسا','خس','جرجير','بقدونس','كزبرة','نعناع','ليمون','موز','تفاح','برتقال','عنب','بطيخ','شمام','مانجو','رمان','كيوي','أناناس','فراولة','تمر','خضار','فاكهة','فواكه'] },
+  { id:'meat', ar:'🍗 لحوم ودواجن وأسماك', en:'🍗 Meat & Seafood', order:2, keywords:['دجاج','لحم','فراخ','كبدة','سمك','هامور','سبيتي','جمبري','ربيان','إبل','نقانق','برجر','لانشون','مفروم','ستيك'] },
+  { id:'dairy', ar:'🥛 ألبان وبيض', en:'🥛 Dairy & Eggs', order:3, keywords:['حليب','لبن','زبادي','رائب','جبنة','جبن','زبدة','قشطة','بيض','لبنة','آيس كريم','كريمة'] },
+  { id:'bakery', ar:'🍞 مخبوزات', en:'🍞 Bakery', order:4, keywords:['خبز','توست','صمون','كرواسون','كيك','بسكويت شاي','دونات','رقاق','خبز عربي'] },
+  { id:'canned', ar:'🥫 معلبات وحبوب', en:'🥫 Canned & Grains', order:5, keywords:['تونة معلبة','فول معلب','حمص معلب','ذرة معلبة','عدس','فاصوليا','حمص جاف','شوفان','كورن فليكس','معلب'] },
+  { id:'rice_pasta', ar:'🍚 أرز ومعكرونة', en:'🍚 Rice & Pasta', order:6, keywords:['أرز','رز','معكرونة','سباغيتي','شعيرية','فريكة','برغل'] },
+  { id:'spices', ar:'🧂 توابل وصلصات', en:'🧂 Spices & Sauces', order:7, keywords:['ملح','فلفل أسود','كمون','كركم','بهارات','صلصة','كاتشب','مايونيز','خردل','صويا','خل','زيت','سكر','عسل','طحينة'] },
+  { id:'beverages', ar:'🥤 مشروبات', en:'🥤 Beverages', order:8, keywords:['ماء','مياه','عصير','كولا','غازي','سفن أب','شاي','قهوة','نسكافيه','طاقة','مشروب','فيمتو','ببسي','ريفريش','تانج','رديبول','ريدبول','فانتا','سبرايت'] },
+  { id:'snacks', ar:'🍫 وجبات خفيفة', en:'🍫 Snacks', order:9, keywords:['شيبس','مكسرات','شوكولاتة','شوكلاتة','بسكويت محلى','حلاوة','فشار','رقائق'] },
+  { id:'frozen', ar:'🧊 تجميد', en:'🧊 Frozen', order:10, keywords:['مجمد','مجمدة','سمبوسة','بيتزا','فطائر مجمدة'] },
+  { id:'cleaning', ar:'🧽 منظفات', en:'🧽 Cleaning', order:11, keywords:['مسحوق غسيل','سائل غسيل','معطر','مطهر','مناديل ورقية','ورق تواليت','أكياس قمامة','منظف','صابون سائل','مبيض','كلور'] },
+  { id:'personal_care', ar:'🧴 عناية شخصية', en:'🧴 Personal Care', order:12, keywords:['شامبو','بلسم','صابون','معجون أسنان','فرشاة أسنان','مزيل عرق','كريم','شفرات','مناديل مبللة','حفاضات'] },
+  { id:'uncategorized', ar:'📦 غير مصنّف', en:'📦 Uncategorized', order:999, keywords:[] },
 ];
+let CATEGORIES = DEFAULT_CATEGORIES.map(c=>({...c}));
+
+async function loadCategories(){
+  try{
+    const snap = await db.collection('categories').get();
+    if(snap.empty){
+      // أول مرة: نبذر القاعدة بالأصناف الافتراضية
+      const batch = db.batch();
+      DEFAULT_CATEGORIES.forEach(c=>{
+        const ref = db.collection('categories').doc(c.id);
+        batch.set(ref, {ar:c.ar, en:c.en, order:c.order, keywords:c.keywords||[]});
+      });
+      await batch.commit();
+      CATEGORIES = DEFAULT_CATEGORIES.map(c=>({...c}));
+    } else {
+      CATEGORIES = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.order||999)-(b.order||999));
+      if(!CATEGORIES.some(c=>c.id==='uncategorized')){
+        CATEGORIES.push({id:'uncategorized', ar:'📦 غير مصنّف', en:'📦 Uncategorized', order:999, keywords:[]});
+      }
+    }
+  }catch(e){ console.error('loadCategories error:', e); }
+}
 
 function guessCategory(name){
   const n = (name||'').trim().toLowerCase();
@@ -760,7 +858,7 @@ function guessCategory(name){
 }
 
 function categoryLabel(id){
-  const cat = CATEGORIES.find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1];
+  const cat = CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='uncategorized') || {ar:'📦 غير مصنّف', en:'📦 Uncategorized'};
   return currentLang==='en' ? cat.en : cat.ar;
 }
 
@@ -924,6 +1022,8 @@ auth.onAuthStateChanged(async (user)=>{
     loadCurrencyPreference();
     loadStores();
     loadLanguagePreference();
+    await loadCategories();
+    renderCategoryBadges();
     checkAdminStatus();
     loadBroadcast();
   } else {
@@ -982,7 +1082,7 @@ const CURRENCIES = [
 const I18N = {
   ar: {
     loggedInAs:'مسجّل باسم', logout:'تسجيل خروج',
-    tabCart:'السلة', tabHistory:'السجل', tabPrep:'الروشن', tabReports:'📊 تقارير',
+    tabCart:'السلة', tabHistory:'السجل', tabPrep:'الروشن', tabReports:'📊 تقارير', tabWarranty:'🛡️ الضمان',
     shopInfo:'معلومات التسوق', storeNameLabel:'اسم المحل', storeNamePh:'مثال: سوبر ماركت الرحمة',
     dateLabel:'التاريخ', budgetLabel:'حدد ميزانية تسوقك (اختياري)', budgetPh:'مثال: 300',
     addProduct:'إضافة منتج', editingBanner:'✏️ تعديل منتج بالسلة', cancelEdit:'إلغاء التعديل',
@@ -1011,6 +1111,10 @@ const I18N = {
     noCompareData:'ما فيه بيانات كافية — لازم تكون اشتريت منتج واحد على الأقل من قائمة الروشن قبل كذا',
     itemsKnown:'منتج معروف', compareFootnote:'* المقارنة على آخر سعر معروف لكل منتج بكل محل، بعملتك الحالية',
     confirmPurchase:'✅ تأكيد الشراء', selectAtLeastOne:'حدد منتج واحد على الأقل', addedCount:'تم إضافة',
+    addWarranty:'🛡️ إضافة فاتورة ضمان', warrantyPhoto:'صورة الفاتورة / كرت الضمان', warrantyProductPh:'مثال: ثلاجة سامسونج',
+    purchaseDate:'تاريخ الشراء', warrantyDuration:'مدة الضمان (بالأشهر)', saveWarranty:'+ حفظ فاتورة الضمان',
+    savedWarranties:'فواتير الضمان المحفوظة', noWarranties:'ما فيه فواتير ضمان محفوظة بعد',
+    warrantyExpired:'⚠️ منتهي', warrantyActive:'✅ ساري لين', attachReceiptPhoto:'📎 أرفق صورة الفاتورة (اختياري)',
     editBtn:'✏️ تعديل', shareBtn:'📤 مشاركة PDF', deleteBtn:'🗑 حذف',
     overview:'📊 نظرة عامة هالشهر', totalMonth:'إجمالي هالشهر', shoppingTimes:'عدد مرات التسوق',
     topBought:'الأكثر شراءً', topStore:'أكثر محل', last6months:'آخر 6 أشهر', noStatsData:'ما فيه بيانات كافية بعد',
@@ -1022,7 +1126,7 @@ const I18N = {
   },
   en: {
     loggedInAs:'Logged in as', logout:'Log out',
-    tabCart:'Cart', tabHistory:'History', tabPrep:'To-Buy List', tabReports:'📊 Reports',
+    tabCart:'Cart', tabHistory:'History', tabPrep:'To-Buy List', tabReports:'📊 Reports', tabWarranty:'🛡️ Warranty',
     shopInfo:'Shopping Info', storeNameLabel:'Store Name', storeNamePh:'e.g. Rahma Supermarket',
     dateLabel:'Date', budgetLabel:'Set your shopping budget (optional)', budgetPh:'e.g. 300',
     addProduct:'Add Product', editingBanner:'✏️ Editing item in cart', cancelEdit:'Cancel Edit',
@@ -1051,6 +1155,10 @@ const I18N = {
     noCompareData:'Not enough data — you need to have bought at least one item from your To-Buy List before',
     itemsKnown:'items known', compareFootnote:'* Comparison based on the last known price of each item per store, in your current currency',
     confirmPurchase:'✅ Confirm Purchase', selectAtLeastOne:'Select at least one item', addedCount:'Added',
+    addWarranty:'🛡️ Add Warranty Receipt', warrantyPhoto:'Receipt / Warranty Card Photo', warrantyProductPh:'e.g. Samsung Fridge',
+    purchaseDate:'Purchase Date', warrantyDuration:'Warranty Duration (months)', saveWarranty:'+ Save Warranty Receipt',
+    savedWarranties:'Saved Warranty Receipts', noWarranties:'No saved warranty receipts yet',
+    warrantyExpired:'⚠️ Expired', warrantyActive:'✅ Valid until', attachReceiptPhoto:'📎 Attach receipt photo (optional)',
     editBtn:'✏️ Edit', shareBtn:'📤 Share PDF', deleteBtn:'🗑 Delete',
     overview:'📊 This Month Overview', totalMonth:'Total This Month', shoppingTimes:'Shopping Trips',
     topBought:'Most Bought', topStore:'Top Store', last6months:'Last 6 Months', noStatsData:'Not enough data yet',
@@ -1421,6 +1529,109 @@ function handleImageSelect(e){
   e.target.value = '';
 }
 
+/* ---- فواتير الضمان ---- */
+let warrantyImageDataUrl = '';
+let warrantyCache = [];
+
+function handleWarrantyImage(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  compressImageFile(file, 900, 0.7).then(dataUrl=>{
+    warrantyImageDataUrl = dataUrl;
+    const preview = document.getElementById('warrantyPreview');
+    preview.src = dataUrl;
+    preview.style.display = 'block';
+    document.getElementById('warrantyPlusIcon').style.display = 'none';
+    document.getElementById('warrantyRemoveBtn').style.display = 'block';
+  });
+  e.target.value = '';
+}
+function removeWarrantyImage(){
+  warrantyImageDataUrl = '';
+  const preview = document.getElementById('warrantyPreview');
+  preview.src = ''; preview.style.display = 'none';
+  document.getElementById('warrantyPlusIcon').style.display = 'block';
+  document.getElementById('warrantyRemoveBtn').style.display = 'none';
+}
+
+async function addWarrantyItem(){
+  const name = document.getElementById('warrantyProductName').value.trim();
+  const purchaseDate = document.getElementById('warrantyPurchaseDate').value;
+  const months = parseInt(document.getElementById('warrantyDuration').value) || 0;
+  if(!name){ showToast(t('productNameLabel')); return; }
+  if(!warrantyImageDataUrl){ showToast(t('warrantyPhoto')); return; }
+
+  let expiryDate = '';
+  if(purchaseDate && months>0){
+    const d = new Date(purchaseDate);
+    d.setMonth(d.getMonth()+months);
+    expiryDate = d.toISOString().slice(0,10);
+  }
+
+  try{
+    await basketRef().collection('warranties').add({
+      name, purchaseDate, months, expiryDate, image: warrantyImageDataUrl, createdAt: new Date().toISOString()
+    });
+    document.getElementById('warrantyProductName').value = '';
+    document.getElementById('warrantyPurchaseDate').value = '';
+    document.getElementById('warrantyDuration').value = '';
+    removeWarrantyImage();
+    showToast('✔');
+    loadWarrantyList();
+  }catch(e){ console.error(e); showToast('صار خطأ بالحفظ'); }
+}
+
+async function loadWarrantyList(){
+  if(!currentUser) return;
+  const box = document.getElementById('warrantyList');
+  box.innerHTML = t('loading');
+  try{
+    const snap = await basketRef().collection('warranties').get();
+    warrantyCache = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (b.purchaseDate||'').localeCompare(a.purchaseDate||''));
+    renderWarrantyList();
+  }catch(e){ console.error(e); box.innerHTML = 'صار خطأ بجلب فواتير الضمان'; }
+}
+
+function renderWarrantyList(){
+  const box = document.getElementById('warrantyList');
+  if(!warrantyCache.length){
+    box.innerHTML = `<div class="receipt-empty">${t('noWarranties')}</div>`;
+    return;
+  }
+  const today = todayISO();
+  box.innerHTML = warrantyCache.map(w=>{
+    const expired = w.expiryDate && w.expiryDate < today;
+    return `
+    <div class="trip-card" style="cursor:default;">
+      <div class="trip-head" style="cursor:pointer;" onclick="viewWarrantyImage('${w.id}')">
+        <div>
+          <div class="trip-store">${escapeHtml(w.name)}</div>
+          <div class="trip-date">${w.purchaseDate||''} ${w.expiryDate ? '· ' + (expired ? t('warrantyExpired') : t('warrantyActive')+' '+w.expiryDate) : ''}</div>
+        </div>
+        ${w.image ? `<img src="${w.image}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">` : ''}
+      </div>
+      <div class="trip-actions">
+        <button class="danger" onclick="deleteWarrantyItem('${w.id}')">🗑 حذف</button>
+      </div>
+    </div>
+  `;}).join('');
+}
+
+function viewWarrantyImage(id){
+  const w = warrantyCache.find(x=>x.id===id);
+  if(!w || !w.image) return;
+  const win = window.open('');
+  if(win) win.document.write(`<img src="${w.image}" style="max-width:100%;">`);
+}
+
+async function deleteWarrantyItem(id){
+  if(!confirm('متأكد تبي تحذف فاتورة الضمان هذي؟')) return;
+  try{
+    await basketRef().collection('warranties').doc(id).delete();
+    loadWarrantyList();
+  }catch(e){ showToast('صار خطأ بالحذف'); }
+}
+
 function showImagePreview(dataUrl){
   const preview = document.getElementById('imgPreview');
   preview.src = dataUrl;
@@ -1764,7 +1975,8 @@ async function finishTrip(){
   const tripCurrencyCode = editingTripId ? (editingTripCurrencyCode || currentCurrency.code) : currentCurrency.code;
   const trip = {
     id: editingTripId || uid(), date: state.date||todayISO(), store: state.store||'محل غير مسمى',
-    items: state.items, taxPercent: taxPct, discount, itemCount: count, subtotal, tax, total, currency: tripCurrencyCode
+    items: state.items, taxPercent: taxPct, discount, itemCount: count, subtotal, tax, total, currency: tripCurrencyCode,
+    receiptImage: currentTripReceiptImage || ''
   };
   try{
     await basketRef().collection('trips').doc(trip.id).set(trip);
@@ -1781,9 +1993,31 @@ async function finishTrip(){
   document.getElementById('budgetAmount').value='';
   document.getElementById('tripDate').value = state.date;
   document.querySelector('.finish-btn').textContent = t('finishTrip');
+  removeTripReceiptImage();
   renderCart(); renderSummary(); loadHistory();
   showToast(wasEditing ? 'تم تحديث الفاتورة ✔' : 'تم حفظ التسوق ✔');
   switchTab('history');
+}
+
+let currentTripReceiptImage = '';
+function handleTripReceiptImage(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  compressImageFile(file, 900, 0.7).then(dataUrl=>{
+    currentTripReceiptImage = dataUrl;
+    const preview = document.getElementById('tripReceiptPreview');
+    preview.src = dataUrl; preview.style.display = 'block';
+    document.getElementById('tripReceiptPlusIcon').style.display = 'none';
+    document.getElementById('tripReceiptRemoveBtn').style.display = 'block';
+  });
+  e.target.value = '';
+}
+function removeTripReceiptImage(){
+  currentTripReceiptImage = '';
+  const preview = document.getElementById('tripReceiptPreview');
+  preview.src=''; preview.style.display='none';
+  document.getElementById('tripReceiptPlusIcon').style.display='block';
+  document.getElementById('tripReceiptRemoveBtn').style.display='none';
 }
 
 function switchTab(tab){
@@ -1791,18 +2025,33 @@ function switchTab(tab){
   document.getElementById('prepTab').style.display = tab==='prep' ? 'block' : 'none';
   document.getElementById('historyTab').style.display = tab==='history' ? 'block' : 'none';
   document.getElementById('reportsTab').style.display = tab==='reports' ? 'block' : 'none';
+  document.getElementById('warrantyTab').style.display = tab==='warranty' ? 'block' : 'none';
   document.getElementById('adminTab').style.display = tab==='admin' ? 'block' : 'none';
   document.getElementById('summaryBar').style.display = tab==='cart' ? 'block' : 'none';
   document.getElementById('tabCart').classList.toggle('active', tab==='cart');
   document.getElementById('tabPrep').classList.toggle('active', tab==='prep');
   document.getElementById('tabHistory').classList.toggle('active', tab==='history');
   document.getElementById('tabReports').classList.toggle('active', tab==='reports');
+  document.getElementById('tabWarranty').classList.toggle('active', tab==='warranty');
   document.getElementById('tabAdmin').classList.toggle('active', tab==='admin');
+  document.getElementById('tabMoreBtn').classList.toggle('active', ['reports','warranty','admin'].includes(tab));
   if(tab==='cart'){ setTimeout(adjustBodyPadding, 0); } else { document.body.style.paddingBottom = '24px'; }
   if(tab==='prep'){ loadPrepList(); }
   if(tab==='admin'){ loadAdminPanel(); }
   if(tab==='reports'){ renderStats(); renderTopSpentProduct(); }
+  if(tab==='warranty'){ loadWarrantyList(); }
 }
+
+function toggleMoreMenu(){
+  const menu = document.getElementById('moreMenu');
+  menu.style.display = menu.style.display==='block' ? 'none' : 'block';
+}
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('moreMenu');
+  if(menu && menu.style.display==='block' && !menu.contains(e.target) && e.target.id!=='tabMoreBtn'){
+    menu.style.display = 'none';
+  }
+});
 
 /* ---- قائمة الروشن ---- */
 async function loadPrepList(){
@@ -2198,6 +2447,90 @@ async function registerStoreIfNew(name){
   }catch(e){ /* اختياري، نتجاهل أي خطأ */ }
 }
 
+/* ---- إدارة الأصناف (الفئات) ---- */
+let editingCategoryId = null;
+
+function renderCategoriesAdminList(){
+  const box = document.getElementById('categoriesAdminList');
+  if(!box) return;
+  const sorted = [...CATEGORIES].sort((a,b)=>(a.order||999)-(b.order||999));
+  box.innerHTML = sorted.map(c=>{
+    const isProtected = c.id === 'uncategorized';
+    if(editingCategoryId === c.id){
+      return `
+        <div class="bulk-row" style="flex-wrap:wrap;">
+          <div class="bulk-fields">
+            <input type="text" id="catEditAr-${c.id}" value="${escapeHtml(c.ar)}" placeholder="الاسم بالعربي">
+            <input type="text" id="catEditEn-${c.id}" value="${escapeHtml(c.en)}" placeholder="English name" style="margin-top:6px;">
+            <input type="number" id="catEditOrder-${c.id}" value="${c.order||1}" placeholder="ترتيب" style="margin-top:6px;width:70px;">
+          </div>
+          <button class="edit-btn" onclick="saveCategory('${c.id}')">💾</button>
+          <button class="bulk-del" onclick="editingCategoryId=null; renderCategoriesAdminList();">✕</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="bulk-row">
+        <div class="bulk-fields">
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(c.ar)} <span style="color:var(--muted);font-weight:400;">(${c.order||'-'})</span></div>
+          <div style="font-size:11px;color:var(--muted);">${escapeHtml(c.en)}</div>
+        </div>
+        ${isProtected ? '' : `<button class="edit-btn" onclick="editingCategoryId='${c.id}'; renderCategoriesAdminList();">✏️</button>
+        <button class="bulk-del" onclick="deleteCategory('${c.id}')">🗑</button>`}
+      </div>
+    `;
+  }).join('');
+}
+
+async function addCategory(){
+  const ar = document.getElementById('catAddAr').value.trim();
+  const en = document.getElementById('catAddEn').value.trim();
+  const order = parseInt(document.getElementById('catAddOrder').value) || (CATEGORIES.length+1);
+  if(!ar || !en){ showToast('اكتب الاسم بالعربي والإنجليزي'); return; }
+  const id = slugify(en || ar);
+  try{
+    await db.collection('categories').doc(id).set({ar, en, order, keywords:[]});
+    document.getElementById('catAddAr').value = '';
+    document.getElementById('catAddEn').value = '';
+    document.getElementById('catAddOrder').value = '';
+    await loadCategories();
+    renderCategoriesAdminList();
+    renderCategoryBadges();
+    showToast('تمت الإضافة ✔');
+  }catch(e){ console.error(e); showToast('صار خطأ بالإضافة'); }
+}
+
+async function saveCategory(id){
+  const ar = document.getElementById('catEditAr-'+id).value.trim();
+  const en = document.getElementById('catEditEn-'+id).value.trim();
+  const order = parseInt(document.getElementById('catEditOrder-'+id).value) || 1;
+  if(!ar || !en){ showToast('اكتب اسم صحيح'); return; }
+  try{
+    await db.collection('categories').doc(id).set({ar, en, order}, {merge:true});
+    editingCategoryId = null;
+    await loadCategories();
+    renderCategoriesAdminList();
+    renderCategoryBadges();
+    showToast('تم الحفظ ✔');
+  }catch(e){ console.error(e); showToast('صار خطأ بالحفظ'); }
+}
+
+async function deleteCategory(id){
+  if(id === 'uncategorized'){ showToast('هذا الصنف محمي، ما يصير يتحذف'); return; }
+  if(!confirm('متأكد تبي تحذف هذا الصنف؟ منتجاته بتنتقل تلقائياً لـ"غير مصنّف".')) return;
+  try{
+    await db.collection('categories').doc(id).delete();
+    // نحوّل منتجات قائمة الروشن الحالية عندك من هذا الصنف لـ"غير مصنّف"
+    let changed = false;
+    prepListCache.forEach(p=>{ if(p.category===id){ p.category='uncategorized'; changed=true; } });
+    if(changed) await savePrepList();
+    await loadCategories();
+    renderCategoriesAdminList();
+    renderCategoryBadges();
+    showToast('تم الحذف');
+  }catch(e){ console.error(e); showToast('صار خطأ بالحذف'); }
+}
+
 async function loadStoresAdmin(){
   const box = document.getElementById('storesList');
   box.textContent = 'جاري التحميل...';
@@ -2431,6 +2764,7 @@ async function loadAdminPanel(){
   renderBulkImageRows();
   loadProductMgmtList();
   loadStoresAdmin();
+  renderCategoriesAdminList();
   try{
     const usersSnap = await db.collection('baskets').get();
     adminUsersCache = usersSnap.docs.map(d=>({uid:d.id, ...d.data()}));
@@ -2660,12 +2994,20 @@ async function loadHistory(){
       </div>
       <div class="trip-items" id="items-${trip.id}"></div>
       <div class="trip-actions" onclick="event.stopPropagation()">
+        ${trip.receiptImage ? `<button onclick="viewTripReceiptImage('${trip.id}')">📎</button>` : ''}
         <button onclick="editTrip('${trip.id}')">${t('editBtn')}</button>
         <button onclick="shareTripPDF('${trip.id}')" id="share-${trip.id}">${t('shareBtn')}</button>
         <button class="danger" onclick="deleteTrip('${trip.id}')">${t('deleteBtn')}</button>
       </div>
     </div>
   `;}).join('');
+}
+
+function viewTripReceiptImage(id){
+  const trip = tripsCache[id];
+  if(!trip || !trip.receiptImage) return;
+  const win = window.open('');
+  if(win) win.document.write(`<img src="${trip.receiptImage}" style="max-width:100%;">`);
 }
 
 async function toggleTrip(id, cardEl){
@@ -2702,6 +3044,15 @@ async function editTrip(id){
   document.getElementById('tripDate').value = state.date;
   document.getElementById('discountAmount').value = state.discount;
   document.getElementById('budgetAmount').value = '';
+  if(trip.receiptImage){
+    currentTripReceiptImage = trip.receiptImage;
+    const preview = document.getElementById('tripReceiptPreview');
+    preview.src = trip.receiptImage; preview.style.display = 'block';
+    document.getElementById('tripReceiptPlusIcon').style.display = 'none';
+    document.getElementById('tripReceiptRemoveBtn').style.display = 'block';
+  } else {
+    removeTripReceiptImage();
+  }
   renderCart(); renderSummary(); saveDraft();
   document.querySelector('.finish-btn').textContent = t('finishTripEdit');
   switchTab('cart');
